@@ -1,2 +1,4 @@
 .DS_STORE
+__PYCACHE__
+venv
 *.zip

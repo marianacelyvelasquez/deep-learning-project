@@ -6,6 +6,16 @@ This repo is aiming at two main things:
 1. Craft ideas and brainstorm solutions, visualize data
 2. Train a model and return the results as part of the project
 
+# Setup
+NOTE: If you are on Windows, then do the below but Windows style... While I have no idea how one does it, it should be easy since all we do is create a Python virtual environment and install the dependencies from requirements.txt
+
+This codebase is being developed on python version 3.11.6. To get started run
+
+1. `python -m venv venv`
+2. `source venv/bin/activate`
+3. `pip install -r requirements.txt`
+4. Download the data. See [data/README.md](data/README.md).
+
 # Structure
 Since we have several datasets and probably utilize several models, this codebase follows a modular approach utilizing [Python modules](https://docs.python.org/3/tutorial/modules.html)
 
@@ -19,3 +29,4 @@ Note that the data in the `data` folder isn't commited to the repository because
 
 # TODO:
 - Create setup script that downloads data etc.
+- The wget command in the data dir readme might have one subdir too many.
