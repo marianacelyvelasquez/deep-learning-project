@@ -1,0 +1,2 @@
+# Introduction
+We are probably going to run several experiments. E.g. we might try to reproduce the results from the dilated CNN paper or run our own thing. Any experiment we do will be a subfolder in this folder.
