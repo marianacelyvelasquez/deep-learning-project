@@ -53,7 +53,7 @@ class Cinc2020Dataset(Dataset):
         fs_target = 500  # Target sampling frequency
         duration = 10  # seconds
         N = duration * fs_target  # Number of time points in target timeseries
-        lx = np.zeros((N, ecg_signal.shape[1]))  # Allocate memory
+        lx = np.zeros((ecg_signal.shape[1], N))  # Allocate memory
 
         # We loop over all 12 leads/channels and resample them to the target frequency.
         # WFDB has a function for that but assumes there's an annotation object,
@@ -76,13 +76,13 @@ class Cinc2020Dataset(Dataset):
                 x_tmp = np.pad(x_tmp, (0, N - len(x_tmp)))
 
             # Store in lx
-            lx[:, chan] = x_tmp
+            lx[chan] = x_tmp
 
         # TODO: We should probably normalize the signal to zero mean and unit variance.
         # I think we do that in the dataloader though.
         ecg_signal = lx
 
-        assert ecg_signal.shape == (5000, 12), "A signal has wrong shape."
+        assert ecg_signal.shape == (12, 5000), "A signal has wrong shape."
 
         # TODO: Currently assuming that the 3 field in comments is the diagnosis.
         # This might or might not be always true.
