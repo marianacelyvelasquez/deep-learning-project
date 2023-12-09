@@ -11,14 +11,13 @@ network_params = {
     'channels': 108,
     'depth': 6,
     'reduced_size': 216,
-    'out_channels': 111,
+    'out_channels': 24,
     'kernel_size': 3
 }
 
 
 def load_model(model, exclude_modules, freeze_modules):
-    load_path = 'models/dilated_CNN/cinc2020_7/pretraining/classes24_epoch_6.pt'
-
+    load_path = "models/dilated_CNN/pretrained_weights.pt"
     if load_path:
         checkpoint = torch.load(load_path, map_location=torch.device('cpu'))
         checkpoint_dict = checkpoint['model_state_dict']
@@ -35,12 +34,10 @@ def load_model(model, exclude_modules, freeze_modules):
         model_state_dict.update(checkpoint_dict)
         # load the new state dict into the model
         model.load_state_dict(model_state_dict)
-
     # freeze the network's model weights of the module names
     # provided
     if not freeze_modules:
-        return model
-
+        return
     for k, param in model.named_parameters():
         if any(re.compile(p).match(k) for p in freeze_modules):
             param.requires_grad = False
@@ -56,13 +53,11 @@ def train():
 
     # Load pretrained model weights
     # TODO: Somehow doesn't properly work yet.
-    """
     freeze_modules = ['network\.0\.network\.[01234].*']
     print('Freezing modules:', freeze_modules)
     exclude_models = None
 
     model = load_model(model, exclude_models, freeze_modules)
-    """
 
     model.train()
 

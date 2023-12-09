@@ -94,7 +94,10 @@ class Cinc2020Dataset(Dataset):
         labels_binary_encoded = np.isin(
             self.labels_map, diagnosis_list).astype(int)
 
-        return ecg_signal, labels_binary_encoded
+        # TODO: We return the first 24 labels simply because use this
+        # dataset with the dilated CNN that was trained on 24 labels.
+        # We HAVE TO change this and only consider the labels that are actually used.
+        return ecg_signal, labels_binary_encoded[0:24]
 
         """
         # This is just needed for plotting:
