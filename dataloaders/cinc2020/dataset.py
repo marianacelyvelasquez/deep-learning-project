@@ -9,12 +9,17 @@ from torch.utils.data import Dataset
 class Cinc2020Dataset(Dataset):
     def __init__(self):
         self.root_dir = 'data/cinc2020/training'
-
         self.records = []
+
+        self.eq_classes = np.array([
+            ['713427006', '59118001'],
+            ['284470004', '63593006'],
+            ['427172004', '17338001']
+        ])
 
         # Source: https://github.com/physionetchallenges/physionetchallenges.github.io/blob/master/2020/Dx_map.csv
         mappings = pd.read_csv(
-            'data/cinc2020/label_cinc2020.csv', delimiter=',')
+            'data/cinc2020/label_cinc2020_top24.csv', delimiter=',')
         self.labels_map = mappings["SNOMED CT Code"].values
 
         # NOTE: In each g* directory, there is a file RECORDS.
@@ -72,7 +77,9 @@ class Cinc2020Dataset(Dataset):
                 # Take first {duration} seconds of resampled signal
                 x_tmp = x_tmp[:N]
             elif len(x_tmp) < N:
-                # Pad with zeros to given duration
+                # Right pad with zeros to given duration
+                # It's important we append the zeros because
+                # our data has a "temporal direction".
                 x_tmp = np.pad(x_tmp, (0, N - len(x_tmp)))
 
             # Store in lx
@@ -88,6 +95,17 @@ class Cinc2020Dataset(Dataset):
         # This might or might not be always true.
         diagnosis_string = record.comments[2].split(': ', 1)[1].strip()
         diagnosis_list = diagnosis_string.split(',')
+
+        # Replace diagnosis with equivalent class if necessary
+        for diagnosis in diagnosis_list:
+            if diagnosis in self.eq_classes[:, 1]:
+                # Get equivalent class
+                eq_class = self.eq_classes[self.eq_classes[:, 1]
+                                           == diagnosis][0][0]
+                # Replace diagnosis with equivalent class
+                diagnosis_list = [eq_class if x ==
+                                  diagnosis else x for x in diagnosis_list]
+
         diagnosis_list = [int(diagnosis) for diagnosis in diagnosis_list]
 
         # Binary encode labels. 1 if label is present, 0 if not.
@@ -97,6 +115,8 @@ class Cinc2020Dataset(Dataset):
         # TODO: We return the first 24 labels simply because use this
         # dataset with the dilated CNN that was trained on 24 labels.
         # We HAVE TO change this and only consider the labels that are actually used.
+        assert len(labels_binary_encoded) == 24, "Wrong number of labels."
+
         return ecg_signal, labels_binary_encoded[0:24]
 
         """
