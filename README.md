@@ -15,6 +15,7 @@ This codebase is being developed on python version 3.11.6. To get started run
 2. `source venv/bin/activate`
 3. `pip install -r requirements.txt`
 4. Download the data. See [data/README.md](data/README.md).
+5. If on mac, set the env var `PYTORCH_ENABLE_MPS_FALLBACK=1`. This is needed if we train on GPU because of some implementation limitation.
 
 # Structure
 Since we have several datasets and probably utilize several models, this codebase follows a modular approach utilizing [Python modules](https://docs.python.org/3/tutorial/modules.html)

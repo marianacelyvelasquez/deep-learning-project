@@ -16,10 +16,30 @@ network_params = {
 }
 
 
+def get_device():
+    # Check if CUDA is available
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print('Using CUDA')
+    # Check if MPS is available
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+        print('Using METAL GPU')
+    # If neither CUDA nor MPS is available, use CPU
+    else:
+        device = torch.device('cpu')
+        print('Using CPU')
+
+    return device
+
+
+device = get_device()
+
+
 def load_model(model, exclude_modules, freeze_modules):
     load_path = "models/dilated_CNN/pretrained_weights.pt"
     if load_path:
-        checkpoint = torch.load(load_path, map_location=torch.device('cpu'))
+        checkpoint = torch.load(load_path, map_location=device)
         checkpoint_dict = checkpoint['model_state_dict']
         model_state_dict = model.state_dict()
 
@@ -37,7 +57,7 @@ def load_model(model, exclude_modules, freeze_modules):
     # freeze the network's model weights of the module names
     # provided
     if not freeze_modules:
-        return
+        return model
     for k, param in model.named_parameters():
         if any(re.compile(p).match(k) for p in freeze_modules):
             param.requires_grad = False
@@ -50,6 +70,7 @@ def train():
     loader = DataLoader(dataset, batch_size=64, shuffle=False)
 
     model = CausalCNNEncoderOld(**network_params)
+    model = model.to(device)
 
     # Load pretrained model weights
     # TODO: Somehow doesn't properly work yet.
@@ -62,6 +83,8 @@ def train():
     model.train()
 
     for idx, (waveforms, labels) in enumerate(tqdm(loader, desc="Training dialted CNN", total=len(loader))):
+        waveforms = waveforms.float().to(device)
+        labels = labels.float().to(device)
         # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
         # So we have to convert it using .float()
-        output = model(waveforms.float())
+        output = model(waveforms)
