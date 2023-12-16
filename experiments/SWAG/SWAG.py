@@ -63,31 +63,13 @@ class SWAGInference(object):
         self.weight_copies_full = collections.deque(maxlen=swag_epochs * swag_update_freq)
         # MARI: This deque will store multiple weight copies over the course of training
 
+        #MARI TODO:
         # Calibration, prediction, and other attributes
         # TODO(2): create additional attributes, e.g., for calibration
         self._prediction_threshold = None  # this is an example, feel free to be creative
 
 
-    def update_swag(self) -> None:
-        """
-        Update SWAG statistics with the current weights of self.network. (here the CNN)
-        """
-
-        # Create a copy of the current network weights
-        # MARI PASCAL TODO: check that this is compatible with the CNN implementation (named_parameters field)
-        current_params = {name: param.detach() for name, param in self.network.named_parameters()}
-
-        # SWAG-diagonal
-        for name, param in current_params.items():
-            # TODO(1): update SWAG-diagonal attributes for weight `name` using `current_params` and `param`
-            raise NotImplementedError("Update SWAG-diagonal statistics")
-
-        # Full SWAG
-        if self.inference_mode == InferenceMode.SWAG_FULL:
-            # TODO(2): update full SWAG attributes for weight `name` using `current_params` and `param`
-            raise NotImplementedError("Update full SWAG statistics")
-
-
+    #Initialization
     def _create_weight_copy(self) -> typing.Dict[str, torch.Tensor]:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight"""
         return {
@@ -96,6 +78,7 @@ class SWAGInference(object):
             #MARI get weights; tensors usually are 4-dimensional [dim 1: #samples, dim 2: channels, dims 3-4: kernel size]
         }
     
+    #Training
     def update_swag(self) -> None:
         """
         Update SWAG statistics with the current weights of self.network.
@@ -118,6 +101,7 @@ class SWAGInference(object):
         # Append a copy of the current weights to the deque
         self.weight_copies_full.append(current_params)
 
+    #Training and/or inference ?
     def _update_batchnorm(self) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
