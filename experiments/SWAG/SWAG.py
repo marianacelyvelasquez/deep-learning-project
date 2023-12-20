@@ -1,6 +1,8 @@
 import enum
 import torch
 import typing
+import math
+import warnings
 import collections
 import tqdm
 
@@ -241,6 +243,47 @@ class SWAGInference(object):
 
         assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
         return bma_probabilities
+
+    def sample_parameters(self) -> None:
+        """
+        Sample a new network from the approximate SWAG posterior.
+        For simplicity, this method directly modifies self.network in-place.
+        Hence, after calling this method, self.network corresponds to a new posterior sample.
+        """
+
+        # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
+
+        for name, param in self.network.named_parameters():
+            # SWAG-diagonal part
+            z_1 = torch.randn(param.size())
+
+            # Sample parameter values for SWAG-diagonal
+            # raise NotImplementedError("Sample parameter for SWAG-diagonal")
+            current_mean = self.theta[name]
+            current_std = torch.sqrt(torch.clamp(
+                self.theta_squared[name] - current_mean**2, min=1e-10))
+
+            assert current_mean.size() == param.size() and current_std.size() == param.size()
+
+            # Diagonal part
+            sampled_param = current_mean + (1.0/math.sqrt(2.0))*current_std*z_1
+
+            # Full SWAG part
+            if self.inference_mode == InferenceMode.SWAG_FULL:
+                # TODO(2): Sample parameter values for full SWAG
+                # raise NotImplementedError("Sample parameter for full SWAG")
+
+                z_2 = torch.randn(param.size())
+
+                for D_i in self.D:
+                    sampled_param += (1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
+                                      ) * torch.clamp(D_i[name]*z_2, min=1e-10)
+
+            # Modify weight value in-place; directly changing self.network
+            param.data = sampled_param
+
+        self._update_batchnorm()
+
 
 
     #Training and/or inference ?
