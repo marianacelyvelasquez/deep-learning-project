@@ -201,6 +201,46 @@ class SWAGInference(object):
         #  The provided value should suffice to pass the easy baseline.
         self._prediction_threshold = 0.8  # 2.0 / 3.0
 
+    def predict_probabilities_swag(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
+        """
+        Perform Bayesian model averaging using your SWAG statistics and predict
+        probabilities for all samples in the loader.
+        Outputs should be a Nx6 tensor, where N is the number of samples in loader,
+        and all rows of the output should sum to 1.
+        That is, output row i column j should be your predicted p(y=j | x_i).
+        """
+
+        self.network.eval()
+
+        # Perform Bayesian model averaging:
+        # Instead of sampling self.bma_samples networks (using self.sample_parameters())
+        # for each datapoint, you can save time by sampling self.bma_samples networks,
+        # and perform inference with each network on all samples in loader.
+        per_model_sample_predictions = []
+        for _ in tqdm.trange(self.bma_samples, desc="Performing Bayesian model averaging"):
+            self.sample_parameters()  # Samples new weights and loads it into our DNN
+
+            # ATTENTION: per_model_sample_predictions contints a list of all predictions for all models.
+            # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
+
+            # predictions is the predictions of one model for all samples in loader
+            predictions = self.predict_probabilities_map(loader)
+            per_model_sample_predictions.append(predictions)
+
+        assert len(per_model_sample_predictions) == self.bma_samples
+        assert all(
+            isinstance(model_sample_predictions, torch.Tensor)
+            and model_sample_predictions.dim() == 2  # N x C
+            and model_sample_predictions.size(1) == 6
+            for model_sample_predictions in per_model_sample_predictions
+        )
+
+        # Add all model predictions together and take the mean
+        bma_probabilities = torch.mean(torch.stack(
+            per_model_sample_predictions, dim=0), dim=0)
+
+        assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
+        return bma_probabilities
 
 
     #Training and/or inference ?
