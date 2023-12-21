@@ -1,10 +1,15 @@
 import re
 from tqdm import tqdm
+import numpy as np
 import torch
+
+from utils.loss import BinaryFocalLoss
+import utils.evaluate_12ECG_score as cinc_eval
 
 from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from torch.utils.data import DataLoader
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
+from utils.MetricsManager import MetricsManager
 
 network_params = {
     'in_channels': 12,
@@ -65,9 +70,27 @@ def load_model(model, exclude_modules, freeze_modules):
     return model
 
 
-def train():
+def run():
     dataset = Cinc2020Dataset()
-    loader = DataLoader(dataset, batch_size=64, shuffle=False)
+
+    # Fix randomness for reproducibility
+    generator = torch.Generator().manual_seed(42)
+
+    test_length = int(len(dataset) * 0.2)
+    validation_length = int(len(dataset) * 0.1)
+    train_length = len(dataset) - test_length - validation_length
+
+    # Test, train, validation split
+    train_data, test_data, validation_data = torch.utils.data.random_split(
+        dataset,
+        [train_length, test_length, validation_length],
+        generator=generator
+    )
+
+    train_loader = DataLoader(train_data, batch_size=128, shuffle=False)
+    test_loader = DataLoader(test_data, batch_size=128, shuffle=False)
+    validation_loader = DataLoader(
+        validation_data, batch_size=128, shuffle=False)
 
     model = CausalCNNEncoderOld(**network_params)
     model = model.to(device)
@@ -80,11 +103,59 @@ def train():
 
     model = load_model(model, exclude_models, freeze_modules)
 
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    # pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1
+    # TODO: Implement this
+    pos_weights = None
+
+    loss_fn = BinaryFocalLoss(
+        device=device,
+        gamma=2,
+        pos_weight=pos_weights,
+    )
+
     model.train()
 
-    for idx, (waveforms, labels) in enumerate(tqdm(loader, desc="Training dialted CNN", total=len(loader))):
-        waveforms = waveforms.float().to(device)
-        labels = labels.float().to(device)
-        # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
-        # So we have to convert it using .float()
-        output = model(waveforms)
+    metrics_manager = MetricsManager(
+        num_epochs=10, num_classes=24, num_batches=len(train_loader))
+
+    num_epochs = 10
+    for epoch in range(num_epochs):
+        with tqdm(train_loader, desc=f"Training dilated CNN. Epoch {epoch +1}", total=len(train_loader)) as pbar:
+            for batch_i, (waveforms, labels) in enumerate(pbar):
+                optimizer.zero_grad()
+
+                waveforms = waveforms.float().to(device)
+                labels = labels.float().to(device)
+                # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
+                # So we have to convert it using .float()
+                predictions = model(waveforms)
+
+                # TODO: Use proper loss
+                # TODO: Move this into the model
+                predictions = torch.sigmoid(predictions)
+                predictions = torch.round(predictions)
+                loss = loss_fn(predictions, labels, model.training)
+
+                # Report loss and accuracy (or whatever metric is important) during training for the training set
+
+                # After each epoch, report more metrics for the validation set. Maybe not all of them.
+
+                # At teh env, report everything for the test set
+
+                loss.backward()
+                optimizer.step()
+
+                metrics_manager.update(
+                    labels, predictions, loss, epoch, batch_i)
+
+                # CUDA  print(f" > loss: {loss.item()} \n")
+
+                # Update tqdm postfix with current loss and accuracy
+                pbar.set_postfix(loss=f"\n{loss.item():.3f}")
+
+                # Update tqdm progress
+                pbar.update()
+
+    # TODO: train
