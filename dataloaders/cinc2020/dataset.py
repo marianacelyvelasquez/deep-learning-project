@@ -4,22 +4,24 @@ import numpy as np
 import pandas as pd
 import wfdb.processing
 from torch.utils.data import Dataset
+from pathlib import Path
 
 
 class Cinc2020Dataset(Dataset):
     def __init__(self):
-        self.root_dir = 'data/cinc2020/training'
+        self.root_dir = "data/cinc2020/training"
         self.records = []
 
-        self.eq_classes = np.array([
-            ['713427006', '59118001'],
-            ['284470004', '63593006'],
-            ['427172004', '17338001']
-        ])
+        self.eq_classes = np.array(
+            [
+                ["713427006", "59118001"],
+                ["284470004", "63593006"],
+                ["427172004", "17338001"],
+            ]
+        )
 
         # Source: https://github.com/physionetchallenges/physionetchallenges.github.io/blob/master/2020/Dx_map.csv
-        mappings = pd.read_csv(
-            'data/cinc2020/label_cinc2020_top24.csv', delimiter=',')
+        mappings = pd.read_csv("data/cinc2020/label_cinc2020_top24.csv", delimiter=",")
         self.labels_map = mappings["SNOMED CT Code"].values
 
         # NOTE: In each g* directory, there is a file RECORDS.
@@ -34,7 +36,7 @@ class Cinc2020Dataset(Dataset):
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
             # Read all records from a current g* subdirectory.
             for filename in filenames:
-                if filename.endswith('.hea'):
+                if filename.endswith(".hea"):
                     record_path = os.path.join(dirpath, filename.split(".")[0])
                     self.records.append(record_path)
 
@@ -70,7 +72,8 @@ class Cinc2020Dataset(Dataset):
             # Resample to target frequency if necessary
             if fs != fs_target:
                 x_tmp, _ = wfdb.processing.resample_sig(
-                    ecg_signal[:, chan], fs, fs_target)
+                    ecg_signal[:, chan], fs, fs_target
+                )
 
             # Fix to given duration if necessary
             if len(x_tmp) > N:
@@ -93,24 +96,23 @@ class Cinc2020Dataset(Dataset):
 
         # TODO: Currently assuming that the 3 field in comments is the diagnosis.
         # This might or might not be always true.
-        diagnosis_string = record.comments[2].split(': ', 1)[1].strip()
-        diagnosis_list = diagnosis_string.split(',')
+        diagnosis_string = record.comments[2].split(": ", 1)[1].strip()
+        diagnosis_list = diagnosis_string.split(",")
 
         # Replace diagnosis with equivalent class if necessary
         for diagnosis in diagnosis_list:
             if diagnosis in self.eq_classes[:, 1]:
                 # Get equivalent class
-                eq_class = self.eq_classes[self.eq_classes[:, 1]
-                                           == diagnosis][0][0]
+                eq_class = self.eq_classes[self.eq_classes[:, 1] == diagnosis][0][0]
                 # Replace diagnosis with equivalent class
-                diagnosis_list = [eq_class if x ==
-                                  diagnosis else x for x in diagnosis_list]
+                diagnosis_list = [
+                    eq_class if x == diagnosis else x for x in diagnosis_list
+                ]
 
         diagnosis_list = [int(diagnosis) for diagnosis in diagnosis_list]
 
         # Binary encode labels. 1 if label is present, 0 if not.
-        labels_binary_encoded = np.isin(
-            self.labels_map, diagnosis_list).astype(int)
+        labels_binary_encoded = np.isin(self.labels_map, diagnosis_list).astype(int)
 
         # TODO: We return the first 24 labels simply because use this
         # dataset with the dilated CNN that was trained on 24 labels.
