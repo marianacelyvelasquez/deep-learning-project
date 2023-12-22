@@ -179,7 +179,7 @@ def run():
 
         with tqdm(
             train_loader,
-            desc=f"Training dilated CNN. Epoch {epoch +1}",
+            desc=f"Training dilated CNN. Epoch {epoch +1}/{num_epochs}",
             total=len(train_loader),
         ) as pbar:
             for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
@@ -224,6 +224,12 @@ def run():
 
             train_metrics_manager.compute_metrics(epoch)
             train_metrics_manager.report(epoch)
+
+            checkpoint_dir = "models/dilated_CNN/checkpoints"
+            os.makedirs(checkpoint_dir, exist_ok=True)
+
+            checkpoint_path = os.path.join(checkpoint_dir, f"epoch_{epoch + 1}.pt")
+            torch.save(model.state_dict(), checkpoint_path)
 
         # Validation evaluation
         model.eval()
