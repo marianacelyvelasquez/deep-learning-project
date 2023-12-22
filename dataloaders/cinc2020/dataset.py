@@ -115,17 +115,14 @@ class Cinc2020Dataset(Dataset):
         # Binary encode labels. 1 if label is present, 0 if not.
         labels_binary_encoded = np.isin(self.labels_map, diagnosis_list).astype(int)
 
-        # TODO: We return the first 24 labels simply because use this
-        # dataset with the dilated CNN that was trained on 24 labels.
-        # We HAVE TO change this and only consider the labels that are actually used.
         assert len(labels_binary_encoded) == 24, "Wrong number of labels."
 
-        # We return the filename becuase it's an indicator for the current record.
+        # We return the filename because it's an indicator for the current record.
         # We need it to be able to store the perdictions using the same filename.
         # The challenge requires us to do this.
         filename = Path(self.records[idx]).stem
 
-        return filename, ecg_signal, labels_binary_encoded[0:24]
+        return filename, ecg_signal, labels_binary_encoded
 
         """
         # This is just needed for plotting:
