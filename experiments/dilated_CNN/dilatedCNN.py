@@ -121,6 +121,25 @@ def load_model(model, exclude_modules, freeze_modules):
     return model
 
 
+def get_label_frequencies(loader):
+    labels = []
+    for _, _, label in loader:
+        labels.append(label.numpy())
+
+    labels = np.concatenate(labels, axis=0)
+
+    freq = np.sum(labels, axis=0)
+
+    return freq
+
+
+def calc_pos_weights(loader):
+    freq = get_label_frequencies(loader)
+    freq = np.where(freq == 0, freq.max(), freq)
+
+    return torch.Tensor(np.around(freq.max() / freq, decimals=1))
+
+
 def run():
     dataset = Cinc2020Dataset()
 
@@ -140,6 +159,20 @@ def run():
     test_loader = DataLoader(test_data, batch_size=128, shuffle=False)
     validation_loader = DataLoader(validation_data, batch_size=128, shuffle=False)
 
+    train_freq = get_label_frequencies(train_loader) / len(train_loader)
+    test_freq = get_label_frequencies(test_loader) / len(test_loader)
+    validation_freq = get_label_frequencies(validation_loader) / len(validation_loader)
+
+    # Labels for each list
+    labels = ["Train freq.", "Test freq. ", "Valid freq."]
+
+    # Function to print the lists as a table with labels
+    print("\nLabel frequencies:")
+    for label, lst in zip(labels, [train_freq, test_freq, validation_freq]):
+        row = f"{label}: " + " ".join(f"{val:6.2f}" for val in lst)
+        print(row)
+    print("\n")
+
     model = CausalCNNEncoderOld(**network_params)
     model = model.to(device)
 
@@ -157,6 +190,8 @@ def run():
     # TODO: Implement this
     pos_weights = None
 
+    pos_weights = ((calc_pos_weights(train_loader) - 1) * 0.5) + 1
+
     loss_fn = BinaryFocalLoss(
         device=device,
         gamma=2,
@@ -171,6 +206,10 @@ def run():
 
     validation_metrics_manager = MetricsManager(
         num_epochs=num_epochs, num_classes=24, num_batches=len(validation_loader)
+    )
+
+    test_metrics_manager = MetricsManager(
+        num_epochs=num_epochs, num_classes=24, num_batches=len(test_loader)
     )
 
     for epoch in range(num_epochs):
@@ -235,9 +274,9 @@ def run():
         model.eval()
 
         with tqdm(
-            train_loader,
+            validation_loader,
             desc=f"Evaluate validation on dilated CNN. Epoch {epoch +1}",
-            total=len(train_loader),
+            total=len(validation_loader),
         ) as pbar:
             # Train
             for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
@@ -264,7 +303,40 @@ def run():
                         )
 
             validation_metrics_manager.compute_metrics(epoch)
-            train_metrics_manager.report(epoch)
+            validation_metrics_manager.report(epoch)
+
+        # TEST set evaluation
+        with tqdm(
+            test_loader,
+            desc=f"Evaluate test data on dilated CNN. Epoch {epoch +1}",
+            total=len(test_loader),
+        ) as pbar:
+            # Train
+            for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                with torch.no_grad():
+                    for batch_i, (filenames, waveforms, labels) in enumerate(
+                        validation_loader
+                    ):
+                        waveforms = waveforms.float().to(device)
+                        labels = labels.float().to(device)
+
+                        predictions = model(waveforms)
+                        predictions = torch.sigmoid(predictions)
+                        predictions = torch.round(predictions)
+
+                        loss = loss_fn(predictions, labels, model.training)
+                        test_metrics_manager.update_loss(loss, epoch, batch_i)
+                        test_metrics_manager.update_confusion_matrix(
+                            labels, predictions, epoch
+                        )
+
+                        save_prediction(filenames, labels, predictions)
+                        save_label(
+                            filenames, "data/cinc2020_flattened", "output", "test"
+                        )
+
+            test_metrics_manager.compute_metrics(epoch)
+            test_metrics_manager.report(epoch)
 
     print(
         "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"
