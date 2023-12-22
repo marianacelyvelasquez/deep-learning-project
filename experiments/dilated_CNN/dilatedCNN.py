@@ -1,5 +1,6 @@
 import re
 import os
+import shutil
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
@@ -23,25 +24,51 @@ network_params = {
 }
 
 
-def save_data(filenames, y_trues, y_preds, output_dir="output"):
+def save_prediction(filenames, y_preds, y_probs, output_dir="output/predictions"):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     # Ensure y_trues and y_preds are numpy arrays for easy manipulation
-    y_trues = y_trues.cpu().detach().numpy()
     y_preds = y_preds.cpu().detach().numpy()
+    y_probs = y_probs.cpu().detach().numpy()
+
+    num_diagnoses = y_preds.shape[1]
 
     # Iterate over each sample
-    for i, filename in enumerate(filenames):
-        # Extract the predictions and true values for the current sample
-        y_true = y_trues[i]
-        y_pred = y_preds[i]
-
-        # Create a DataFrame for the current sample
-        data = {
-            "diagnosis_{}".format(j + 1): [y_pred[j]] for j in range(y_pred.shape[0])
-        }
-        df = pd.DataFrame(data)
+    for filename, y_pred, y_prob in zip(filenames, y_preds, y_probs):
+        # Create a DataFrame for the current sampleo
+        header = [f"diagnosis_{j+1}" for j in range(num_diagnoses)]
+        df = pd.DataFrame(columns=header)
+        df.loc[0] = y_pred
+        df.loc[1] = y_prob
 
         # Save the DataFrame to a CSV file
         df.to_csv(os.path.join(output_dir, f"{filename}.csv"), index=False)
+
+
+def save_label(filenames, data_dir, output_dir, subdir):
+    """
+    Moves files from data_dir to a subdir in output_dir.
+
+    Args:
+    filenames (list of str): List of filenames without extensions.
+    data_dir (str): Directory where the original files are located.
+    output_dir (str): Base directory where the files will be moved.
+    subdir (str): Subdirectory within output_dir where files will be moved.
+    """
+    # Ensure the output directory and subdirectory exist
+    final_output_dir = os.path.join(output_dir, subdir)
+    if not os.path.exists(final_output_dir):
+        os.makedirs(final_output_dir)
+
+    # Move each file
+    for filename in filenames:
+        # Construct the full file paths
+        original_path = os.path.join(data_dir, filename + ".hea")
+        new_path = os.path.join(final_output_dir, filename + ".hea")
+
+        # Move the file
+        shutil.copy(original_path, new_path)
 
 
 def get_device():
@@ -136,14 +163,20 @@ def run():
         pos_weight=pos_weights,
     )
 
-    model.train()
+    num_epochs = 1
 
-    metrics_manager = MetricsManager(
-        num_epochs=10, num_classes=24, num_batches=len(train_loader)
+    train_metrics_manager = MetricsManager(
+        num_epochs=num_epochs, num_classes=24, num_batches=len(train_loader)
     )
 
-    num_epochs = 10
+    validation_metrics_manager = MetricsManager(
+        num_epochs=num_epochs, num_classes=24, num_batches=len(validation_loader)
+    )
+
     for epoch in range(num_epochs):
+        # Train
+        model.train()
+
         with tqdm(
             train_loader,
             desc=f"Training dilated CNN. Epoch {epoch +1}",
@@ -156,15 +189,16 @@ def run():
                 labels = labels.float().to(device)
                 # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                 # So we have to convert it using .float()
-                predictions = model(waveforms)
+                predictions_logits = model(waveforms)
 
                 # TODO: Use proper loss
                 # TODO: Move this into the model
-                predictions = torch.sigmoid(predictions)
-                predictions = torch.round(predictions)
+                predictions_probabilities = torch.sigmoid(predictions_logits)
+                predictions = torch.round(predictions_probabilities)
                 loss = loss_fn(predictions, labels, model.training)
 
-                save_data(filenames, labels, predictions)
+                save_prediction(filenames, predictions, predictions_probabilities)
+                save_label(filenames, "data/cinc2020_flattened", "output", "training")
 
                 # Report loss and accuracy (or whatever metric is important) during training for the training set
 
@@ -175,8 +209,10 @@ def run():
                 loss.backward()
                 optimizer.step()
 
-                metrics_manager.update_confusion_matrix(labels, predictions, epoch)
-                metrics_manager.update_loss(loss, epoch, batch_i)
+                train_metrics_manager.update_confusion_matrix(
+                    labels, predictions, epoch
+                )
+                train_metrics_manager.update_loss(loss, epoch, batch_i)
 
                 # CUDA  print(f" > loss: {loss.item()} \n")
 
@@ -186,7 +222,46 @@ def run():
                 # Update tqdm progress
                 pbar.update()
 
-            metrics_manager.compute_metrics(epoch)
-            metrics_manager.report(epoch)
+            train_metrics_manager.compute_metrics(epoch)
+            train_metrics_manager.report(epoch)
+
+        # Validation evaluation
+        model.eval()
+
+        with tqdm(
+            train_loader,
+            desc=f"Evaluate validation on dilated CNN. Epoch {epoch +1}",
+            total=len(train_loader),
+        ) as pbar:
+            # Train
+            for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                with torch.no_grad():
+                    for batch_i, (filenames, waveforms, labels) in enumerate(
+                        validation_loader
+                    ):
+                        waveforms = waveforms.float().to(device)
+                        labels = labels.float().to(device)
+
+                        predictions = model(waveforms)
+                        predictions = torch.sigmoid(predictions)
+                        predictions = torch.round(predictions)
+
+                        loss = loss_fn(predictions, labels, model.training)
+                        validation_metrics_manager.update_loss(loss, epoch, batch_i)
+                        validation_metrics_manager.update_confusion_matrix(
+                            labels, predictions, epoch
+                        )
+
+                        save_prediction(filenames, labels, predictions)
+                        save_label(
+                            filenames, "data/cinc2020_flattened", "output", "validation"
+                        )
+
+            validation_metrics_manager.compute_metrics(epoch)
+            train_metrics_manager.report(epoch)
+
+    print(
+        "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"
+    )
 
     # TODO: train
