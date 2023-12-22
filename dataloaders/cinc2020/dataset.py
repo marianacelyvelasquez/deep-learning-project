@@ -9,7 +9,8 @@ from pathlib import Path
 
 class Cinc2020Dataset(Dataset):
     def __init__(self):
-        self.root_dir = "data/cinc2020/training"
+        # self.root_dir = "data/cinc2020/training"
+        self.root_dir = "data/cinc2020_flattened"
         self.records = []
 
         self.eq_classes = np.array(
@@ -119,7 +120,12 @@ class Cinc2020Dataset(Dataset):
         # We HAVE TO change this and only consider the labels that are actually used.
         assert len(labels_binary_encoded) == 24, "Wrong number of labels."
 
-        return ecg_signal, labels_binary_encoded[0:24]
+        # We return the filename becuase it's an indicator for the current record.
+        # We need it to be able to store the perdictions using the same filename.
+        # The challenge requires us to do this.
+        filename = Path(self.records[idx]).stem
+
+        return filename, ecg_signal, labels_binary_encoded[0:24]
 
         """
         # This is just needed for plotting:
