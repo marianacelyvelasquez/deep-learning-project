@@ -1,4 +1,6 @@
 import re
+import os
+import pandas as pd
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -12,28 +14,49 @@ from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 from utils.MetricsManager import MetricsManager
 
 network_params = {
-    'in_channels': 12,
-    'channels': 108,
-    'depth': 6,
-    'reduced_size': 216,
-    'out_channels': 24,
-    'kernel_size': 3
+    "in_channels": 12,
+    "channels": 108,
+    "depth": 6,
+    "reduced_size": 216,
+    "out_channels": 24,
+    "kernel_size": 3,
 }
+
+
+def save_data(filenames, y_trues, y_preds, output_dir="output"):
+    # Ensure y_trues and y_preds are numpy arrays for easy manipulation
+    y_trues = y_trues.cpu().detach().numpy()
+    y_preds = y_preds.cpu().detach().numpy()
+
+    # Iterate over each sample
+    for i, filename in enumerate(filenames):
+        # Extract the predictions and true values for the current sample
+        y_true = y_trues[i]
+        y_pred = y_preds[i]
+
+        # Create a DataFrame for the current sample
+        data = {
+            "diagnosis_{}".format(j + 1): [y_pred[j]] for j in range(y_pred.shape[0])
+        }
+        df = pd.DataFrame(data)
+
+        # Save the DataFrame to a CSV file
+        df.to_csv(os.path.join(output_dir, f"{filename}.csv"), index=False)
 
 
 def get_device():
     # Check if CUDA is available
     if torch.cuda.is_available():
-        device = torch.device('cuda')
-        print('Using CUDA')
+        device = torch.device("cuda")
+        print("Using CUDA")
     # Check if MPS is available
     elif torch.backends.mps.is_available():
-        device = torch.device('mps')
-        print('Using METAL GPU')
+        device = torch.device("mps")
+        print("Using METAL GPU")
     # If neither CUDA nor MPS is available, use CPU
     else:
-        device = torch.device('cpu')
-        print('Using CPU')
+        device = torch.device("cpu")
+        print("Using CPU")
 
     return device
 
@@ -45,15 +68,16 @@ def load_model(model, exclude_modules, freeze_modules):
     load_path = "models/dilated_CNN/pretrained_weights.pt"
     if load_path:
         checkpoint = torch.load(load_path, map_location=device)
-        checkpoint_dict = checkpoint['model_state_dict']
+        checkpoint_dict = checkpoint["model_state_dict"]
         model_state_dict = model.state_dict()
 
         # filter out unnecessary keys
         if exclude_modules:
             checkpoint_dict = {
-                k: v for k, v in checkpoint_dict.items()
-                if k in model_state_dict and
-                not any(re.compile(p).match(k) for p in exclude_modules)
+                k: v
+                for k, v in checkpoint_dict.items()
+                if k in model_state_dict
+                and not any(re.compile(p).match(k) for p in exclude_modules)
             }
         # overwrite entries in the existing state dict
         model_state_dict.update(checkpoint_dict)
@@ -82,23 +106,20 @@ def run():
 
     # Test, train, validation split
     train_data, test_data, validation_data = torch.utils.data.random_split(
-        dataset,
-        [train_length, test_length, validation_length],
-        generator=generator
+        dataset, [train_length, test_length, validation_length], generator=generator
     )
 
     train_loader = DataLoader(train_data, batch_size=128, shuffle=False)
     test_loader = DataLoader(test_data, batch_size=128, shuffle=False)
-    validation_loader = DataLoader(
-        validation_data, batch_size=128, shuffle=False)
+    validation_loader = DataLoader(validation_data, batch_size=128, shuffle=False)
 
     model = CausalCNNEncoderOld(**network_params)
     model = model.to(device)
 
     # Load pretrained model weights
     # TODO: Somehow doesn't properly work yet.
-    freeze_modules = ['network\.0\.network\.[01234].*']
-    print('Freezing modules:', freeze_modules)
+    freeze_modules = ["network\.0\.network\.[01234].*"]
+    print("Freezing modules:", freeze_modules)
     exclude_models = None
 
     model = load_model(model, exclude_models, freeze_modules)
@@ -118,12 +139,17 @@ def run():
     model.train()
 
     metrics_manager = MetricsManager(
-        num_epochs=10, num_classes=24, num_batches=len(train_loader))
+        num_epochs=10, num_classes=24, num_batches=len(train_loader)
+    )
 
     num_epochs = 10
     for epoch in range(num_epochs):
-        with tqdm(train_loader, desc=f"Training dilated CNN. Epoch {epoch +1}", total=len(train_loader)) as pbar:
-            for batch_i, (waveforms, labels) in enumerate(pbar):
+        with tqdm(
+            train_loader,
+            desc=f"Training dilated CNN. Epoch {epoch +1}",
+            total=len(train_loader),
+        ) as pbar:
+            for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                 optimizer.zero_grad()
 
                 waveforms = waveforms.float().to(device)
@@ -138,6 +164,8 @@ def run():
                 predictions = torch.round(predictions)
                 loss = loss_fn(predictions, labels, model.training)
 
+                save_data(filenames, labels, predictions)
+
                 # Report loss and accuracy (or whatever metric is important) during training for the training set
 
                 # After each epoch, report more metrics for the validation set. Maybe not all of them.
@@ -147,8 +175,8 @@ def run():
                 loss.backward()
                 optimizer.step()
 
-                metrics_manager.update(
-                    labels, predictions, loss, epoch, batch_i)
+                metrics_manager.update_confusion_matrix(labels, predictions, epoch)
+                metrics_manager.update_loss(loss, epoch, batch_i)
 
                 # CUDA  print(f" > loss: {loss.item()} \n")
 
@@ -157,5 +185,8 @@ def run():
 
                 # Update tqdm progress
                 pbar.update()
+
+            metrics_manager.compute_metrics(epoch)
+            metrics_manager.report(epoch)
 
     # TODO: train
