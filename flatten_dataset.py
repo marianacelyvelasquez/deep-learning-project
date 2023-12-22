@@ -27,7 +27,7 @@ def flatten_dataset(source_dir, flattened_dir_name="cinc2020_flattened"):
     for src_file, dst_file in tqdm(
         files_to_move, desc="Flattening dataset", unit="file"
     ):
-        shutil.move(str(src_file), str(dst_file))
+        shutil.copy(str(src_file), str(dst_file))
 
     print(f"Flattened dataset is available at: {flattened_dir}")
 
