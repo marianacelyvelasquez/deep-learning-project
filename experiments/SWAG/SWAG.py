@@ -6,21 +6,13 @@ import warnings
 import collections
 import tqdm
 
-class InferenceMode(enum.Enum):
-    """
-    `MAP` predicts the most likely class using pretrained MAP weights.
-    `SWAG_DIAGONAL` and `SWAG_FULL` correspond to SWAG-diagonal and the full SWAG method, respectively.
-    """
-    MAP = 0 #MARI I don't think we need this yet
-    SWAG_DIAGONAL = 1
-    SWAG_FULL = 2
 
 class SWAGInference(object):
 
     def __init__(
         self,
         train_xs: torch.Tensor,
-        inference_mode: InferenceMode = InferenceMode.SWAG_DIAGONAL,
+        inference_mode: 'swag-diagonal',
 
         #MARI some extra epochs to collect all the weights - 30 “different models“
         # then you average over something something
@@ -66,15 +58,16 @@ class SWAGInference(object):
 
         # Full SWAG
         #MARI-PASCAL: weight_copies_full is the D-matrix
+        #MARI TODO: ?????self.weight_copies_full.clear()
         self.weight_copies_full = collections.deque(maxlen=swag_epochs * swag_update_freq) #Pascal's team did different
         # MARI: This deque will store multiple weight copies over the course of training
-        # MARI-PASCAL: possibly use something different instead of deque
+        # MARI-PASCAL: possibly use something different instead of deque [computationally more efficient but 'clear' may be better]
 
-        #MARI TODO:
+        #MARI-RIC TODO:
         # Calibration, prediction, and other attributes
         # TODO(2): create additional attributes, e.g., for calibration
         
-        self._prediction_threshold = None  # this is an example, feel free to be creative
+        self._prediction_threshold = None  # this is an example, feel free to be creative #RIC: find threshold
         self.n = 0  # number of samples seen so far
 
 
@@ -94,7 +87,8 @@ class SWAGInference(object):
         """
 
         # Create a copy of the current network weights
-        current_params = {name: param.detach() for name, param in self.network.named_parameters()} # MARI-PASCAL: why detach and not clone?
+        # MARI-PASCAL: why clone and not detach? to make an actual copy, not a ref, to have cleaner stuff
+        current_params = {name: param.clone() for name, param in self.network.named_parameters()} 
 
         # SWAG-diagonal
         for name, param in current_params.items():
@@ -105,8 +99,7 @@ class SWAGInference(object):
            
 
         # Full SWAG
-        if self.inference_mode == InferenceMode.SWAG_FULL:
-            self._update_full_swag(current_params)
+        self._update_full_swag(current_params)
 
     def _update_full_swag(self, current_params) -> None:
         """Update the Full SWAG weight copies during training."""
@@ -121,6 +114,7 @@ class SWAGInference(object):
         This method should perform gradient descent with occasional SWAG updates
         by calling self.update_swag().
         """
+        # Will be replaced with Pascal's stuff (use same as pretrained, i.e. Adam + binary-focal-loss on 1-to-many class)
 
         # Use SGD with momentum and weight decay to perform SWA.
         optimizer = torch.optim.SGD(
@@ -133,6 +127,9 @@ class SWAGInference(object):
         loss = torch.nn.CrossEntropyLoss(
             reduction="mean",
         )
+
+        # Will NOT be replaced with Pascal's stuff (use same as pretrained, i.e. Adam + binary-focal-loss)
+
         # Update SWAGScheduler instantiation if you decided to implement a custom schedule.
         #  By default, this scheduler just keeps the initial learning rate given to `optimizer`.
         lr_scheduler = SWAGScheduler(
@@ -142,16 +139,12 @@ class SWAGInference(object):
         )
 
         # Perform initialization for SWAG fitting
-        # PASCAL-TEAM-QUESTION: I think this might be "wrong" because the constructor
-        # they added a note stating that we never have to work with all
-        # the weights of the network at once but could only use the
-        # weights of the current layer or something like that.
-        # So we could maybe simplify this.
+
+        # Mari's interpretation: all the computations done are per layer 
         self.theta = {name: param.detach().clone()
                       for name, param in self.network.named_parameters()}
         self.theta_squared = {name: param.detach().clone(
         )**2 for name, param in self.network.named_parameters()}
-
 
         self.network.train()
         with tqdm.trange(self.swag_epochs, desc="Running gradient descent for SWA") as pbar:
@@ -160,7 +153,7 @@ class SWAGInference(object):
                 average_loss = 0.0
                 average_accuracy = 0.0
                 num_samples_processed = 0
-                for batch_xs, batch_is_snow, batch_is_cloud, batch_ys in loader:
+                for batch_xs, batch_ys in loader:
                     optimizer.zero_grad()
                     pred_ys = self.network(batch_xs)
                     batch_loss = loss(input=pred_ys, target=batch_ys)
@@ -168,7 +161,9 @@ class SWAGInference(object):
                     optimizer.step()
                     pbar_dict["lr"] = lr_scheduler.get_last_lr()[0]
                     lr_scheduler.step()
-
+                    
+                    
+                    # Most of this :point_down: is updating metrics
                     # Calculate cumulative average training loss and accuracy
                     average_loss = (batch_xs.size(0) * batch_loss.item() + num_samples_processed * average_loss) / (
                         num_samples_processed + batch_xs.size(0)
@@ -181,28 +176,23 @@ class SWAGInference(object):
                     pbar_dict["avg. epoch loss"] = average_loss
                     pbar_dict["avg. epoch accuracy"] = average_accuracy
                     pbar.set_postfix(pbar_dict)
+                # End of just updating metrics
 
                 # Implement periodic SWAG updates using the attributes defined in __init__
                 if epoch % self.swag_update_freq == 0:
                     self.n = epoch // self.swag_update_freq + 1
                     self.update_swag()
 
-# BASICALLY NOT DONE: CALIBRATE FUNCTION
+# NOT DONE YET: CALIBRATE FUNCTION - MARI-PASCAL-RIC
     def calibrate(self, validation_data: torch.utils.data.Dataset) -> None:
         """
-        Calibrate your predictions using a small validation set.
-        validation_data contains well-defined and ambiguous samples,
-        where you can identify the latter by having label -1.
+        Calibrate predictions using a small validation set.
         """
-        if self.inference_mode == InferenceMode.MAP:
-            # In MAP mode, simply predict argmax and do nothing else
-            self._prediction_threshold = 0.0
-            return
-
-        # TODO(1): pick a prediction threshold, either constant or adaptive.
-        #  The provided value should suffice to pass the easy baseline.
+        # TODO MARI-PASCAL-RIC: implement threshold that makes sense
+        # TODO either use validation_data as training set for temperature scaling? if not needed, kill it
         self._prediction_threshold = 0.8  # 2.0 / 3.0
 
+# TODO: once CALIBRATE is done, reuse a sort of scaling factor output of calibration, and this'll be the difference between 
     def predict_probabilities_swag(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
         """
         Perform Bayesian model averaging using your SWAG statistics and predict
@@ -212,6 +202,7 @@ class SWAGInference(object):
         That is, output row i column j should be your predicted p(y=j | x_i).
         """
 
+        #Telling pytorch not to update gradients pls - read documentation but it's a "locker" functionality
         self.network.eval()
 
         # Perform Bayesian model averaging:
@@ -226,7 +217,9 @@ class SWAGInference(object):
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
 
             # predictions is the predictions of one model for all samples in loader
-            predictions = self.predict_probabilities_map(loader)
+
+
+            predictions = self.predict_probabilities_vanilla(loader)
             per_model_sample_predictions.append(predictions)
 
         assert len(per_model_sample_predictions) == self.bma_samples
@@ -243,6 +236,19 @@ class SWAGInference(object):
 
         assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
         return bma_probabilities
+
+    def predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
+        """
+        This function does the same as old predict_probabilities_map that you can use as placeholder
+        for the logic until we have calibration and proper SWAG-prediction functionality
+        """
+        predictions = []
+        for (batch_xs,) in loader:
+            predictions.append(self.network(batch_xs))
+
+        predictions = torch.cat(predictions)
+        return torch.softmax(predictions, dim=-1)
+    
 
     def sample_parameters(self) -> None:
         """
@@ -268,25 +274,27 @@ class SWAGInference(object):
             # Diagonal part
             sampled_param = current_mean + (1.0/math.sqrt(2.0))*current_std*z_1
 
+            # TODO MARI-PASCAL-RIC: review formula
+            # Here we are doing the multiplication layer-by-layer using the same z_2 every time
+            # so a sort of periodic randomness which may be wrong -> with full-swag solution, may improve "randomness"
+            # PASCAL TEAM : unsure about how they didi the multiplication `) * torch` bit
             # Full SWAG part
-            if self.inference_mode == InferenceMode.SWAG_FULL:
-                # TODO(2): Sample parameter values for full SWAG
-                # raise NotImplementedError("Sample parameter for full SWAG")
+            z_2 = torch.randn(param.size()) #unsure of the logic here and flexibility of formula
 
-                z_2 = torch.randn(param.size())
-
-                for D_i in self.D:
-                    sampled_param += (1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
-                                      ) * torch.clamp(D_i[name]*z_2, min=1e-10)
+            for D_i in self.weight_copies_full:
+                sampled_param += (1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
+                                  ) * torch.clamp(D_i[name]*z_2, min=1e-10)
 
             # Modify weight value in-place; directly changing self.network
             param.data = sampled_param
 
+        #don't remember much why, but bc we update the weights in place, we re-do batch-normalization at the end of this fn
+        #shouldn't be a big deal so no worries (f.ex. it may just be "scaling the weights" or "normalizing distrib")
         self._update_batchnorm()
 
 
 
-    #Training and/or inference ?
+    #Training and/or inference ? TODO: read documentation about it :nerd_face:
     def _update_batchnorm(self) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
@@ -339,18 +347,6 @@ class SWAGScheduler(torch.optim.lr_scheduler.LRScheduler):
     and add+store additional attributes in __init__.
     You should not change any other parts of this class.
     """
-    def calculate_lr(self, current_epoch: float, old_lr: float) -> float:
-        """
-        Calculate the learning rate for the epoch given by current_epoch.
-        current_epoch is the fractional epoch of SWA fitting, starting at 0.
-        That is, an integer value x indicates the start of epoch (x+1),
-        and non-integer values x.y correspond to steps in between epochs (x+1) and (x+2).
-        old_lr is the previous learning rate.
-
-        This method should return a single float: the new learning rate.
-        """
-        return old_lr
-
 # DETAILS - TO IMPROVE
     def __init__(
         self,
@@ -361,6 +357,22 @@ class SWAGScheduler(torch.optim.lr_scheduler.LRScheduler):
         self.epochs = epochs
         self.steps_per_epoch = steps_per_epoch
         super().__init__(optimizer, last_epoch=-1, verbose=False)
+
+    def calculate_lr(self, current_epoch: float, old_lr: float) -> float:
+        """
+        Calculate the learning rate for the epoch given by current_epoch.
+        current_epoch is the fractional epoch of SWA fitting, starting at 0.
+        That is, an integer value x indicates the start of epoch (x+1),
+        and non-integer values x.y correspond to steps in between epochs (x+1) and (x+2).
+        old_lr is the previous learning rate.
+
+        This method should return a single float: the new learning rate.
+        """
+        # MARI TODO: can define a list of lr-s and cycle through
+        # NOTE: it's possible that in SWA paper they try constant and cyclic, but that in the SWAG, only constant
+        # so perhaps we don't mind much - it's a possible improvement
+        return old_lr
+
 
     def get_lr(self):
         if not self._get_lr_called_within_step:
