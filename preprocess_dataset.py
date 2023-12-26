@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader, random_split
 
 
-def preprocess_dataset(self):
+def preprocess_dataset():
     dataset = Cinc2020Dataset()
 
     # Fix randomness for reproducibility
@@ -28,26 +28,26 @@ def preprocess_dataset(self):
 
     # MARI
     if isinstance(dataset, torch.utils.data.Dataset):
-        print(f"dataset is a PyTorch dataset with train_data[0]: {train_data[0]}, train_data[0] length: {len(train_data[0])}, train_data[0][1] shape: {(train_data[0][1]).shape()}, train_data[0][2] shape: {len(train_data[0][2])}")
+        print(f"dataset is a PyTorch dataset with train_data[0]: {train_data[0]} , train_data[0] length: {len(train_data[0])}") 
     else:
         print("dataset is not a PyTorch dataset")
     # not MARI anymore
 
-    train_freq = self.get_label_frequencies(train_loader) / len(train_loader)
-    test_freq = self.get_label_frequencies(test_loader) / len(test_loader)
-    validation_freq = self.get_label_frequencies(validation_loader) / len(
-        validation_loader
-    )
+    # train_freq = self.get_label_frequencies(train_loader) / len(train_loader)
+    # test_freq = self.get_label_frequencies(test_loader) / len(test_loader)
+    # validation_freq = self.get_label_frequencies(validation_loader) / len(
+    #     validation_loader
+    # )
 
     # Labels for each list
     labels = ["Train freq.", "Test freq. ", "Valid freq."]
 
     # Function to print the lists as a table with labels
     print("\nLabel frequencies:")
-    for label, lst in zip(labels, [train_freq, test_freq, validation_freq]):
-        row = f"{label}: " + " ".join(f"{val:6.2f}" for val in lst)
-        print(row)
-    print("\n")
+    # for label, lst in zip(labels, [train_freq, test_freq, validation_freq]):
+    #     row = f"{label}: " + " ".join(f"{val:6.2f}" for val in lst)
+    #     print(row)
+    # print("\n")
 
     return (
         train_data,
@@ -60,7 +60,7 @@ def preprocess_dataset(self):
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) >= 2 and sys.arg[1] == "lets go":
+    if len(sys.argv) >= 2 and sys.argv[1] == "lets-go":
         print("Entering pre-processing mode")
         preprocess_dataset()
     else:
