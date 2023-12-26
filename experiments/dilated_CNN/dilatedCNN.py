@@ -54,7 +54,7 @@ class dilatedCNNExperiment:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = 10
+        self.num_epochs = 2
 
         self.train_metrics_manager = MetricsManager(
             num_epochs=self.num_epochs,
@@ -352,40 +352,40 @@ class dilatedCNNExperiment:
                 self.validation_metrics_manager.compute_micro_averages(epoch)
                 self.validation_metrics_manager.report_micro_averages(epoch)
 
-            # TEST set evaluation
-            with tqdm(
-                self.test_loader,
-                desc=f"Evaluate test data on dilated CNN. Epoch {epoch +1}",
-                total=len(self.test_loader),
-            ) as pbar:
-                # Train
-                for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
-                    with torch.no_grad():
-                        for batch_i, (filenames, waveforms, labels) in enumerate(
-                            self.validation_loader
-                        ):
-                            waveforms = waveforms.float().to(self.device)
-                            labels = labels.float().to(self.device)
+        # TEST set evaluation
+        with tqdm(
+            self.test_loader,
+            desc=f"Evaluate test data on dilated CNN.",
+            total=len(self.test_loader),
+        ) as pbar:
+            # Train
+            for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                with torch.no_grad():
+                    last_epoch = self.num_epochs - 1
 
-                            predictions = self.model(waveforms)
-                            predictions = torch.sigmoid(predictions)
-                            predictions = torch.round(predictions)
+                    for batch_i, (filenames, waveforms, labels) in enumerate(
+                        self.validation_loader
+                    ):
+                        waveforms = waveforms.float().to(self.device)
+                        labels = labels.float().to(self.device)
 
-                            loss = self.loss_fn(
-                                predictions, labels, self.model.training
-                            )
-                            self.test_metrics_manager.update_loss(loss, epoch, batch_i)
-                            self.test_metrics_manager.update_confusion_matrix(
-                                labels, predictions, epoch
-                            )
+                        predictions = self.model(waveforms)
+                        predictions = torch.sigmoid(predictions)
+                        predictions = torch.round(predictions)
 
-                            self.save_prediction(filenames, labels, predictions)
-                            self.save_label(
-                                filenames, "data/cinc2020_flattened", "output", "test"
-                            )
+                        loss = self.loss_fn(predictions, labels, self.model.training)
+                        self.test_metrics_manager.update_loss(loss, last_epoch, batch_i)
+                        self.test_metrics_manager.update_confusion_matrix(
+                            labels, predictions, last_epoch
+                        )
 
-                self.test_metrics_manager.compute_micro_averages(epoch)
-                self.test_metrics_manager.report_micro_averages(epoch)
+                        self.save_prediction(filenames, labels, predictions)
+                        self.save_label(
+                            filenames, "data/cinc2020_flattened", "output", "test"
+                        )
+
+            self.test_metrics_manager.compute_micro_averages(last_epoch)
+            self.test_metrics_manager.report_micro_averages(last_epoch)
 
         print(
             "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"
