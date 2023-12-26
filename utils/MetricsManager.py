@@ -1,10 +1,12 @@
+import csv
+import os
 import numpy as np
 import numpy.typing as npt
 from sklearn.metrics import multilabel_confusion_matrix
 
 
 class MetricsManager:
-    def __init__(self, num_epochs, num_classes, num_batches):
+    def __init__(self, num_epochs, num_classes, num_batches, output):
         # True Positives
         self.tp: npt.NDArray[np.int_] = np.zeros((num_epochs, num_classes))
         # False Negatives
@@ -16,12 +18,18 @@ class MetricsManager:
 
         self.loss: npt.NDArray[np.float_] = np.zeros((num_epochs, num_batches))
 
+        self.output = output
+
         # TODO: Implement
         self.challenge_metric: npt.NDArray[np.float_] = np.zeros(
             (num_epochs, num_classes)
         )
-        self.sensitivity: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
-        self.specificity: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+
+        # For each class, we have a list of metrics for each epoch.
+        # You can take the average over all classes for a given epoch
+        # to get the "macro" average.
+        self.recall: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        self.TNR: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
         self.FPR: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
         self.PPV: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
         self.NPV: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
@@ -30,6 +38,18 @@ class MetricsManager:
         self.g2: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
         self.ROCAUC: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
         self.AP: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+
+        # Micro averages
+        self.recall_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.TNR_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.FPR_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.PPV_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.NPV_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.f1_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.f2_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.g2_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.ROCAUC_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.AP_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
 
     def update_confusion_matrix(self, y_trues, y_preds, epoch):
         """
@@ -61,70 +81,96 @@ class MetricsManager:
     def update_loss(self, loss, epoch, batch_i):
         self.loss[epoch][batch_i] = loss.detach().cpu()
 
+    def compute_micro_averages(self, epoch):
+        tp = np.sum(self.tp[epoch])
+        fn = np.sum(self.fn[epoch])
+        fp = np.sum(self.fp[epoch])
+        tn = np.sum(self.tn[epoch])
+
+        self.recall_micro[epoch] = self.compute_recall(tp, fn)
+        self.TNR_micro[epoch] = self.compute_TNR(tn, fp)
+        self.FPR_micro[epoch] = self.compute_false_positive_rate(tn, fp)
+        self.PPV_micro[epoch] = self.compute_positive_predictive_value(tp, fp)
+        self.NPV_micro[epoch] = self.compute_negative_predictive_value(tn, fn)
+        self.f1_micro[epoch] = self.compute_f1(
+            self.recall_micro[epoch], self.PPV_micro[epoch]
+        )
+        self.f2_micro[epoch] = self.compute_fbeta(tp, fp, fn, beta=2)
+        self.g2_micro[epoch] = self.compute_jaccard(tp, fp, fn, beta=2)
+
     def compute_metrics(self, epoch):
-        self.sensitivity[epoch] = self.compute_sensitivity(epoch)
-        self.specificity[epoch] = self.compute_specificity(epoch)
-        self.FPR[epoch] = self.compute_false_positive_rate(epoch)
-        self.PPV[epoch] = self.compute_positive_predictive_value(epoch)
-        self.NPV[epoch] = self.compute_negative_predictive_value(epoch)
-        self.f1[epoch] = self.compute_f1(epoch)
-        self.f2[epoch] = self.compute_fbeta(epoch)
-        self.g2[epoch] = self.compute_jaccard(epoch)
+        current_tp = self.tp[epoch]
+        current_tn = self.tn[epoch]
+        current_fp = self.fp[epoch]
+        current_fn = self.fn[epoch]
+
+        self.recall[epoch] = self.compute_recall(current_tp, current_fn)
+        self.TNR[epoch] = self.compute_TNR(current_tn, current_fp)
+        self.FPR[epoch] = self.compute_false_positive_rate(current_tn, current_fp)
+        self.PPV[epoch] = self.compute_positive_predictive_value(current_tp, current_fp)
+        self.NPV[epoch] = self.compute_negative_predictive_value(current_tn, current_fn)
+        self.f1[epoch] = self.compute_f1(self.recall[epoch], self.PPV[epoch])
+        self.f2[epoch] = self.compute_fbeta(current_tp, current_fp, current_fn, beta=2)
+        self.g2[epoch] = self.compute_jaccard(
+            current_tp, current_fp, current_fn, beta=2
+        )
         # TODO: Implement average precision score
 
         print("Updated all metrics for the current epoch.")
 
-    def compute_sensitivity(self, epoch):
-        # Calculate sensitivity for each class
-        sensitivity = self.tp[epoch] / (self.tp[epoch] + self.fn[epoch])
-        sensitivity = np.nan_to_num(sensitivity)
+    @staticmethod
+    def compute_recall(tp, fn):
+        # Calculate recall for each class
+        recall = tp / (tp + fn)
+        recall = np.nan_to_num(recall)
 
-        return sensitivity
+        return recall
 
-    def compute_specificity(self, epoch):
-        specificity = self.tn[epoch] / (self.tn[epoch] + self.fp[epoch])
-        specificity = np.nan_to_num(specificity)
+    @staticmethod
+    def compute_TNR(tn, fp):
+        TNR = tn / (tn + fp)
+        TNR = np.nan_to_num(TNR)
 
-        return specificity
+        return TNR
 
-    def compute_false_positive_rate(self, epoch):
-        false_positive_rate = self.fp[epoch] / (self.tn[epoch] + self.fp[epoch])
+    @staticmethod
+    def compute_false_positive_rate(tn, fp):
+        false_positive_rate = fp / (tn + fp)
         false_positive_rate = np.nan_to_num(false_positive_rate)
 
         return false_positive_rate
 
-    def compute_positive_predictive_value(self, epoch):
-        positive_predictive_value = self.tp[epoch] / (self.tp[epoch] + self.fp[epoch])
+    @staticmethod
+    def compute_positive_predictive_value(tp, fp):
+        positive_predictive_value = tp / (tp + fp)
         positive_predictive_value = np.nan_to_num(positive_predictive_value)
 
         return positive_predictive_value
 
-    def compute_negative_predictive_value(self, epoch):
-        negative_predictive_value = self.tn[epoch] / (self.tn[epoch] + self.fn[epoch])
+    @staticmethod
+    def compute_negative_predictive_value(tn, fn):
+        negative_predictive_value = tn / (tn + fn)
         negative_predictive_value = np.nan_to_num(negative_predictive_value)
 
         return negative_predictive_value
 
-    def compute_f1(self, epoch):
-        recall = self.sensitivity[epoch]
-        precision = self.PPV[epoch]
+    @staticmethod
+    def compute_f1(recall, precision):
         f1 = 2 * ((recall * precision) / (recall + precision))
         f1 = np.nan_to_num(f1)
 
         return f1
 
-    def compute_fbeta(self, epoch, beta=2):
-        fbeta = ((1 + beta**2) * self.tp[epoch]) / (
-            (1 + beta**2) * self.tp[epoch] + self.fp[epoch] + (beta**2) * self.fn[epoch]
-        )
+    @staticmethod
+    def compute_fbeta(tp, fp, fn, beta=2):
+        fbeta = ((1 + beta**2) * tp) / ((1 + beta**2) * tp + fp + (beta**2) * fn)
         fbeta = np.nan_to_num(fbeta)
 
         return fbeta
 
-    def compute_jaccard(self, epoch, beta=2):
-        jaccard = self.tp[epoch] / (
-            self.tp[epoch] + self.fp[epoch] + beta * self.fn[epoch]
-        )
+    @staticmethod
+    def compute_jaccard(tp, fp, fn, beta=2):
+        jaccard = tp / (tp + fp + beta * fn)
         jaccard = np.nan_to_num(jaccard)
 
         return jaccard
@@ -132,8 +178,8 @@ class MetricsManager:
     def report(self, epoch):
         # Define the metrics to report
         metrics = [
-            "Sensitivity",
-            "Specificity",
+            "recall",
+            "TNR",
             "FPR",
             "PPV",
             "NPV",
@@ -153,8 +199,8 @@ class MetricsManager:
         # Print metrics for each class
         for class_i in range(num_classes):
             metrics_values = [
-                self.sensitivity[epoch, class_i],
-                self.specificity[epoch, class_i],
+                self.recall[epoch, class_i],
+                self.TNR[epoch, class_i],
                 self.FPR[epoch, class_i],
                 self.PPV[epoch, class_i],
                 self.NPV[epoch, class_i],
@@ -168,3 +214,57 @@ class MetricsManager:
             print(row)
 
         print("\n")
+
+    def report_micro_averages(self, epoch):
+        # Define the metrics to report
+        metrics = [
+            "Recall",
+            "TNR",
+            "FPR",
+            "PPV",
+            "NPV",
+            "F1",
+            "F2",
+            "Jaccard",
+        ]
+
+        # Print the header
+        header = "".join([f"{metric:>10}" for metric in metrics])
+        print(header)
+        print("-" * len(header))
+
+        # Print metrics for each class
+        metrics_values = [
+            self.recall_micro[epoch],
+            self.TNR_micro[epoch],
+            self.FPR_micro[epoch],
+            self.PPV_micro[epoch],
+            self.NPV_micro[epoch],
+            self.f1_micro[epoch],
+            self.f2_micro[epoch],
+            self.g2_micro[epoch],
+        ]
+
+        row = "".join([f"{value:10.4f}" for value in metrics_values])
+        print(row)
+
+        print("\n")
+
+        # Determine the file mode - overwrite if it's the first epoch and file exists
+        file_mode = "w" if epoch == 0 and os.path.exists(self.output) else "a"
+
+        # Append the metrics for the current epoch to the CSV file
+        with open(self.output, file_mode, newline="") as csvfile:
+            csvwriter = csv.writer(csvfile)
+
+            # Write header if it's the first epoch
+            if epoch == 0:
+                csvwriter.writerow(["Epoch"] + metrics)
+
+            # Write the metrics values
+            csvwriter.writerow(
+                [
+                    f"{value:.4f}" if isinstance(value, float) else value
+                    for value in [epoch] + metrics_values
+                ]
+            )

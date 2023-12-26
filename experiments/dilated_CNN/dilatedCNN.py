@@ -54,24 +54,27 @@ class dilatedCNNExperiment:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = 1
+        self.num_epochs = 10
 
         self.train_metrics_manager = MetricsManager(
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.train_loader),
+            output="output/train_metrics.csv",
         )
 
         self.validation_metrics_manager = MetricsManager(
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.validation_loader),
+            output="output/validation_metrics.csv",
         )
 
         self.test_metrics_manager = MetricsManager(
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.test_loader),
+            output="output/test_metrics.csv",
         )
 
     def save_prediction(
@@ -298,8 +301,8 @@ class dilatedCNNExperiment:
                     # Update tqdm progress
                     pbar.update()
 
-                self.train_metrics_manager.compute_metrics(epoch)
-                self.train_metrics_manager.report(epoch)
+                self.train_metrics_manager.compute_micro_averages(epoch)
+                self.train_metrics_manager.report_micro_averages(epoch)
 
                 checkpoint_dir = "models/dilated_CNN/checkpoints"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -346,8 +349,8 @@ class dilatedCNNExperiment:
                                 "validation",
                             )
 
-                self.validation_metrics_manager.compute_metrics(epoch)
-                self.validation_metrics_manager.report(epoch)
+                self.validation_metrics_manager.compute_micro_averages(epoch)
+                self.validation_metrics_manager.report_micro_averages(epoch)
 
             # TEST set evaluation
             with tqdm(
@@ -381,8 +384,8 @@ class dilatedCNNExperiment:
                                 filenames, "data/cinc2020_flattened", "output", "test"
                             )
 
-                self.test_metrics_manager.compute_metrics(epoch)
-                self.test_metrics_manager.report(epoch)
+                self.test_metrics_manager.compute_micro_averages(epoch)
+                self.test_metrics_manager.report_micro_averages(epoch)
 
         print(
             "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"
