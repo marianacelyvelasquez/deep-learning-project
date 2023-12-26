@@ -34,11 +34,8 @@ class dilatedCNNExperiment:
         # iterative stratification, then create PyTorch Datasets out of those.
         # Resampling and padding can be done in the Dataset class.
         (
-            train_data,
             train_loader,
-            validation_data,
             validation_loader,
-            test_data,
             test_loader,
         ) = self.setup_datasets()
 
@@ -198,24 +195,11 @@ class dilatedCNNExperiment:
         return torch.Tensor(np.around(freq.max() / freq, decimals=1))
 
     def setup_datasets(self):
-        dataset = Cinc2020Dataset()
-
-        # Fix randomness for reproducibility
-        generator = torch.Generator().manual_seed(42)
-
-        test_length = int(len(dataset) * 0.2)
-        validation_length = int(len(dataset) * 0.1)
-        train_length = len(dataset) - test_length - validation_length
-
-        # Test, train, validation split
-        train_data, test_data, validation_data = torch.utils.data.random_split(
-            dataset, [train_length, test_length, validation_length], generator=generator
-        )
 
         train_loader = DataLoader(train_data, batch_size=128, shuffle=False)
         test_loader = DataLoader(test_data, batch_size=128, shuffle=False)
         validation_loader = DataLoader(validation_data, batch_size=128, shuffle=False)
-
+ 
         train_freq = self.get_label_frequencies(train_loader) / len(train_loader)
         test_freq = self.get_label_frequencies(test_loader) / len(test_loader)
         validation_freq = self.get_label_frequencies(validation_loader) / len(
@@ -233,11 +217,8 @@ class dilatedCNNExperiment:
         print("\n")
 
         return (
-            train_data,
             train_loader,
-            validation_data,
             validation_loader,
-            test_data,
             test_loader,
         )
 
