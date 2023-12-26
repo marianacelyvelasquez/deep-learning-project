@@ -243,9 +243,7 @@ class dilatedCNNExperiment:
 
     def setup_loss_fn(self):
         # pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1
-        # TODO: Implement this
-        pos_weights = None
-
+        # TODO: Make sure the values we compute make sense
         pos_weights = ((self.calc_pos_weights(self.train_loader) - 1) * 0.5) + 1
 
         loss_fn = BinaryFocalLoss(
@@ -275,8 +273,6 @@ class dilatedCNNExperiment:
                     # So we have to convert it using .float()
                     predictions_logits = self.model(waveforms)
 
-                    # TODO: Use proper loss
-                    # TODO: Move this into the model
                     predictions_probabilities = torch.sigmoid(predictions_logits)
                     predictions = torch.round(predictions_probabilities)
                     loss = self.loss_fn(predictions, labels, self.model.training)
@@ -288,12 +284,6 @@ class dilatedCNNExperiment:
                         filenames, "data/cinc2020_flattened", "output", "training"
                     )
 
-                    # Report loss and accuracy (or whatever metric is important) during training for the training set
-
-                    # After each epoch, report more metrics for the validation set. Maybe not all of them.
-
-                    # At teh env, report everything for the test set
-
                     loss.backward()
                     self.optimizer.step()
 
@@ -301,8 +291,6 @@ class dilatedCNNExperiment:
                         labels, predictions, epoch
                     )
                     self.train_metrics_manager.update_loss(loss, epoch, batch_i)
-
-                    # CUDA  print(f" > loss: {loss.item()} \n")
 
                     # Update tqdm postfix with current loss and accuracy
                     pbar.set_postfix(loss=f"\n{loss.item():.3f}")
