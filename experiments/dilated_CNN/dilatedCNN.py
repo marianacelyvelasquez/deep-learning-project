@@ -353,9 +353,10 @@ class dilatedCNNExperiment:
                 self.validation_metrics_manager.report_micro_averages(epoch)
 
         # TEST set evaluation
+        self.model.eval()
         with tqdm(
             self.test_loader,
-            desc=f"Evaluate test data on dilated CNN.",
+            desc="Evaluate test data on dilated CNN.",
             total=len(self.test_loader),
         ) as pbar:
             # Train
@@ -385,7 +386,7 @@ class dilatedCNNExperiment:
                         )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
-            self.test_metrics_manager.report_micro_averages(last_epoch)
+            self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)
 
         print(
             "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"

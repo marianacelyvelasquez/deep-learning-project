@@ -215,7 +215,7 @@ class MetricsManager:
 
         print("\n")
 
-    def report_micro_averages(self, epoch):
+    def report_micro_averages(self, epoch, rewrite=False):
         # Define the metrics to report
         metrics = [
             "Recall",
@@ -251,14 +251,18 @@ class MetricsManager:
         print("\n")
 
         # Determine the file mode - overwrite if it's the first epoch and file exists
-        file_mode = "w" if epoch == 0 and os.path.exists(self.output) else "a"
+        file_mode = (
+            "w"
+            if epoch == 0 and os.path.exists(self.output) or rewrite is True
+            else "a"
+        )
 
         # Append the metrics for the current epoch to the CSV file
         with open(self.output, file_mode, newline="") as csvfile:
             csvwriter = csv.writer(csvfile)
 
             # Write header if it's the first epoch
-            if epoch == 0:
+            if epoch == 0 or rewrite:
                 csvwriter.writerow(["Epoch"] + metrics)
 
             # Write the metrics values
