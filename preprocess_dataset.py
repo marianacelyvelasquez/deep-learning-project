@@ -1,59 +1,107 @@
 import os
 import shutil
+import wfdb
+import numpy as np
+import pandas as pd
 from pathlib import Path
-from tqdm import tqdm
-from dataloaders.cinc2020.dataset import Cinc2020Dataset
-import torch
-
-from torch.utils.data import DataLoader, random_split
+from skmultilearn.model_selection import iterative_train_test_split #TODO: understand why this is not working on my laptop
+from dataloaders.cinc2020.preprocess import Processor
 
 
-def preprocess_dataset():
-    dataset = Cinc2020Dataset()
+# MARI RIC: Assume _flattened exists :)
+# input_dir = "data/2020_flattened"
+input_dir = "data/2020_tiny"
 
-    # Fix randomness for reproducibility
-    generator = torch.Generator().manual_seed(42)
+eq_classes = np.array([
+    ["713427006", "59118001"],
+    ["284470004", "63593006"],
+    ["427172004", "17338001"],
+    ])
 
-    test_length = int(len(dataset) * 0.2)
-    validation_length = int(len(dataset) * 0.1)
-    train_length = len(dataset) - test_length - validation_length
+mappings = pd.read_csv("data/cinc2020/label_cinc2020_top24.csv", delimiter=",")
+labels_map = mappings["SNOMED CT Code"].values
 
-    # Test, train, validation split
-    train_data, test_data, validation_data = random_split(
-        dataset, [train_length, test_length, validation_length], generator=generator
+
+def get_labels_binary_encoded(record):
+    diagnosis_string = record.comments[2].split(": ", 1)[1].strip()
+    diagnosis_list = diagnosis_string.split(",")
+
+    # Replace diagnosis with equivalent class if necessary
+    for diagnosis in diagnosis_list:
+        if diagnosis in eq_classes[:, 1]:
+            eq_class = eq_classes[eq_classes[:, 1] == diagnosis][0][0]
+            diagnosis_list = [
+        eq_class if x == diagnosis else x for x in diagnosis_list
+            ]
+
+    diagnosis_list = [int(diagnosis) for diagnosis in diagnosis_list]
+
+    # Binary encode labels. 1 if label is present, 0 if not.
+    return np.isin(labels_map, diagnosis_list).astype(int)
+
+
+
+def preprocess_dataset(source_dir):
+    #First: create directories for the split data
+    processed_dir_training = Path(source_dir).parent / "cinc2020_processed_training"
+    processed_dir_training.mkdir(exist_ok=True)
+
+    processed_dir_testing = Path(source_dir).parent / "cinc2020_processed_testing"
+    processed_dir_testing.mkdir(exist_ok=True)
+
+    processed_dir_validating = Path(source_dir).parent / "cinc2020_processed_validating"
+    processed_dir_validating.mkdir(exist_ok=True)
+
+    # Allocate stuff for records list and labels list
+    record_paths = []
+    labels_binary_encoded_list = []
+
+    # Process each record and save to the appropriate directory
+    for dirpath, dirnames, filenames in os.walk(input_dir):
+        for filename in filenames:
+            if filename.endswith(".hea"):
+                record_path = os.path.join(dirpath, filename.split(".")[0]) # keep path + filename without extension (so no difference between .hea and .mat)
+                record_paths.append(record_path)
+                # Get labels from the content of the .hea file [MARI: sorry I went fully functional]
+                record = wfdb.rdrecord(record_path)
+                labels_binary_encoded = get_labels_binary_encoded(record)
+                labels_binary_encoded_list.append(labels_binary_encoded)
+
+        # Now, stratifyyyyyyy :star:
+        # Convert lists to arrays
+    X = np.array(record_paths)
+    y = np.array(labels_binary_encoded_list)
+    
+    # Perform iterative stratified split
+    X_train, X_temp, y_train, y_temp = iterative_train_test_split(
+        X,
+        y,
+        test_size=0.2,  # 0.8 train ?
+        random_state=42,  # For reproducibility
+        stratify=y
     )
-
-    # train_data has shape: Array('stringofrecordname', 2D array of floats, 1D array (size 24) of 0s and one 1)
-
-
-    # MARI
-    if isinstance(dataset, torch.utils.data.Dataset):
-        print(f"dataset is a PyTorch dataset with train_data[0]: {train_data[0]} , train_data[0] length: {len(train_data[0])}") 
-    else:
-        print("dataset is not a PyTorch dataset")
-    # not MARI anymore
-
-    # train_freq = self.get_label_frequencies(train_loader) / len(train_loader)
-    # test_freq = self.get_label_frequencies(test_loader) / len(test_loader)
-    # validation_freq = self.get_label_frequencies(validation_loader) / len(
-    #     validation_loader
-    # )
-
-    # Labels for each list
-    labels = ["Train freq.", "Test freq. ", "Valid freq."]
-
-    # Function to print the lists as a table with labels
-    print("\nLabel frequencies:")
-    # for label, lst in zip(labels, [train_freq, test_freq, validation_freq]):
-    #     row = f"{label}: " + " ".join(f"{val:6.2f}" for val in lst)
-    #     print(row)
-    # print("\n")
-
-    return (
-        train_data,
-        validation_data,
-        test_data,
+    
+    X_val, X_test, y_val, y_test = iterative_train_test_split(
+        X_temp,
+        y_temp,
+        test_size=0.5,  # Half test half validate
+        random_state=42,  # For reproducibility
+        stratify=y_temp
     )
+    
+    # Initialize the processor TODO check the paths are correct lol
+    processor = Processor(input_dir)
+    processor.process_records(X_train, processed_dir_training)
+    processor.process_records(X_test, processed_dir_testing)
+    processor.process_records(X_val, processed_dir_validating)
+
+
+    # # TODO: copy .mat files to directories
+    # for filename in Path(input_dir).glob("*.mat"):
+    #     dest_dir = None  # Determine the destination directory based on the filename or any other condition
+    #     if dest_dir:
+    #         copyfile(filename, Path(dest_dir) / filename.name)
+
 
 
 # This is the part of the script that handles command line arguments
