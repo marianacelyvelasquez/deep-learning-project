@@ -4,9 +4,9 @@ import pandas as pd
 import wfdb
 
 class Processor:
-    def __init__(self, root_dir):
-        # root_dir could be "data/cinc2020_flattened" or "data/cinc2020_tiny"
-        self.root_dir = root_dir
+    def __init__(self, input_dir):
+        # input_dir could be "data/cinc2020_flattened" or "data/cinc2020_tiny"
+        self.input_dir = input_dir
         self.eq_classes = np.array([
             ["713427006", "59118001"],
             ["284470004", "63593006"],
@@ -98,10 +98,10 @@ class Processor:
             fmt=original_record.fmt,
         )
 
-        # Save resampled data as .hea file
-        wfdb.wrsamp(output_hea_file, new_record.p_signal, fs=new_record.fs, units=new_record.units, sig_name=new_record.sig_name)
-        # Save .mat file 
-        wfdb.wrsamp(output_mat_file, new_record.p_signal, fs=new_record.fs, units=new_record.units, sig_name=new_record.sig_name)
+        # Save resampled data as .hea file AND .mat FILE ???
+        print(f"filename: {filename}")
+        wfdb.io.convert.matlab.wfdb_to_mat(filename, new_record)
+
 
 
 class ProcessedDataset:
