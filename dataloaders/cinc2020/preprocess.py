@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import scipy.io
 import wfdb
+import wfdb.io.convert
 
 class Processor:
     def __init__(self, input_dir):
@@ -38,6 +40,8 @@ class Processor:
         for record_path in record_paths:
             record = wfdb.rdrecord(record_path)
             ecg_signal = record.p_signal
+            print(f"first record.fmt {record.fmt} \n\n")
+            print("Number of channels:", record.n_sig)
 
             # Fix parameters for our target timeseries
             fs = record.fs  # Original sampling frequency
@@ -45,6 +49,7 @@ class Processor:
             duration = 10  # seconds
             N = duration * fs_target  # Number of time points in target timeseries
             lx = np.zeros((ecg_signal.shape[1], N))  # Allocate memory
+            print(f"ecg_signal shape: {ecg_signal.shape} \n\n")
 
             # We loop over all 12 leads/channels and resample them to the target frequency.
             # WFDB has a function for that but assumes there's an annotation object,
@@ -71,29 +76,49 @@ class Processor:
             # TODO: We should probably normalize the signal to zero mean and unit variance.
             # I think we do that in the dataloader though.
             ecg_signal = lx
+            print(f"ecg_signal shape after resampling: {ecg_signal.shape} \n\n")
+            # MARI: new record
+            # Create new record object with the resampled signal
+            new_record = wfdb.Record(
+                p_signal=ecg_signal,
+                record_name=record.record_name,
+                fs=fs_target,
+                sig_name=record.sig_name,
+                units=record.units,
+                comments=record.comments,
+                base_date=record.base_date,
+                base_time=record.base_time,
+                fmt=record.fmt,
+            )
+
+
+
 
             # MARI RIC: Rest of the code for processing labels remains unchanged
 
             # MARI RIC: Save the processed data as new .hea and .mat files
             new_filename = Path(output_dir) / f"{Path(record_path).stem}" # is something like "cinc2020_processed_training/g00001"
-            self.save_processed_data(new_filename, ecg_signal)
+            self.save_processed_data(new_filename, new_record)
 
-    def save_processed_data(self, filename, ecg_signal):
+    def save_processed_data(self, filename, record):
+        string_filename = str(filename)
+        print(f"\nfilename: {filename} \n")
+        # Save record as .hea and .dat files
+        print(f"fmt issue? : {record.fmt} \n")
+        # PROBLEMS HERE: (is my ecg_signal wrongly shaped ?)
 
-        # Save resampled data as .hea file
-        with open(f"{filename}.hea", 'w') as hea_file:
-            hea_file.write(f"signal 0 {filename}.mat 1000 {len(ecg_signal)} 16 0\n")
+        # for ch in range(np.shape(self.p_signal)[1]):
+        #     # Get the minimum and maximum (valid) storage values
+        #     dmin, dmax = _digi_bounds(self.fmt[ch])
+        #     # add 1 because the lowest value is used to store nans
+        #     dmin = dmin + 1
 
-        # Save resampled data as .mat file
-        scipy.io.savemat(f"{filename}.mat", {'ECG': ecg_signal})
+        wfdb.io.wrsamp(string_filename, record.fs, record.units, record.sig_name, record.p_signal,  comments=record.comments, fmt=record.fmt)
 
-    # def save_processed_data(self, filename, ecg_signal):
-    #     print(f"i am inside save_processed_data")
 
-    #     # Get the original record for header information
-    #     original_record = wfdb.rdrecord(f"{self.input_dir}/{Path(filename).stem}")
 
-    #     # Save resampled data as .hea file AND .mat FILE
-    #     wfdb.io.convert.matlab.wfdb_to_mat(filename, sampfrom=0, sampto=len(ecg_signal), channels=None)
+        # Save resampled data as .hea file AND .mat FILE ???
+        print(f"\nstring_filename: {string_filename} \n")
+        wfdb.io.convert.matlab.wfdb_to_mat(string_filename)
 
 
