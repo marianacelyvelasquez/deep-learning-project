@@ -75,12 +75,33 @@ class Processor:
 
             # MARI RIC: Save the processed data as new .hea and .mat files
             new_filename = Path(output_dir) / f"{Path(record_path).stem}" # is something like "cinc2020_processed_training/g00001"
-            self.save_processed_data(new_filename, ecg_signal, labels_binary_encoded)
+            self.save_processed_data(new_filename, ecg_signal)
 
-    def save_processed_data(self, filename, ecg_signal, labels_binary_encoded):
-        # Here you should write code to save ecg_signal and labels_binary_encoded to .hea and .mat files
-        # The exact implementation will depend on the format you want to use for saving.
-        pass
+    def save_processed_data(self, filename, ecg_signal):
+        # Construct the output file paths for .hea and .mat
+        output_hea_file = f"{filename}.hea"
+        output_mat_file = f"{filename}.mat"
+
+        # Get the original record for header information
+        original_record = wfdb.rdrecord(f"{self.input_dir}/{Path(filename).stem}")
+
+        # Create new record object with the resampled signal
+        new_record = wfdb.Record(
+            p_signal=ecg_signal,
+            record_name=original_record.record_name,
+            fs=original_record.fs,
+            sig_name=original_record.sig_name,
+            units=original_record.units,
+            comments=original_record.comments,
+            base_date=original_record.base_date,
+            base_time=original_record.base_time,
+            fmt=original_record.fmt,
+        )
+
+        # Save resampled data as .hea file
+        wfdb.wrsamp(output_hea_file, new_record.p_signal, fs=new_record.fs, units=new_record.units, sig_name=new_record.sig_name)
+        # Save .mat file 
+        wfdb.wrsamp(output_mat_file, new_record.p_signal, fs=new_record.fs, units=new_record.units, sig_name=new_record.sig_name)
 
 
 class ProcessedDataset:
