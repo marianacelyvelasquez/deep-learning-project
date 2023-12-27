@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import scipy.io
 import wfdb
 
 class Processor:
@@ -78,41 +79,21 @@ class Processor:
             self.save_processed_data(new_filename, ecg_signal)
 
     def save_processed_data(self, filename, ecg_signal):
-        # Construct the output file paths for .hea and .mat
-        output_hea_file = f"{filename}.hea"
-        output_mat_file = f"{filename}.mat"
 
-        # Get the original record for header information
-        original_record = wfdb.rdrecord(f"{self.input_dir}/{Path(filename).stem}")
+        # Save resampled data as .hea file
+        with open(f"{filename}.hea", 'w') as hea_file:
+            hea_file.write(f"signal 0 {filename}.mat 1000 {len(ecg_signal)} 16 0\n")
 
-        # Create new record object with the resampled signal
-        new_record = wfdb.Record(
-            p_signal=ecg_signal,
-            record_name=original_record.record_name,
-            fs=original_record.fs,
-            sig_name=original_record.sig_name,
-            units=original_record.units,
-            comments=original_record.comments,
-            base_date=original_record.base_date,
-            base_time=original_record.base_time,
-            fmt=original_record.fmt,
-        )
+        # Save resampled data as .mat file
+        scipy.io.savemat(f"{filename}.mat", {'ECG': ecg_signal})
 
-        # Save resampled data as .hea file AND .mat FILE ???
-        print(f"filename: {filename}")
-        wfdb.io.convert.matlab.wfdb_to_mat(filename, new_record)
+    # def save_processed_data(self, filename, ecg_signal):
+    #     print(f"i am inside save_processed_data")
+
+    #     # Get the original record for header information
+    #     original_record = wfdb.rdrecord(f"{self.input_dir}/{Path(filename).stem}")
+
+    #     # Save resampled data as .hea file AND .mat FILE
+    #     wfdb.io.convert.matlab.wfdb_to_mat(filename, sampfrom=0, sampto=len(ecg_signal), channels=None)
 
 
-
-class ProcessedDataset:
-    def __init__(self, processed_dir):
-        self.processed_dir = processed_dir
-        self.records = [filename.stem for filename in Path(processed_dir).glob("*.hea")]
-
-    def __len__(self):
-        return len(self.records)
-
-    def __getitem__(self, idx):
-        # Implement the logic to load processed data from .hea and .mat files
-        # Return the necessary information for training/testing
-        pass
