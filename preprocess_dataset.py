@@ -4,13 +4,13 @@ import wfdb
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from skmultilearn.model_selection import iterative_train_test_split #TODO: understand why this is not working on my laptop
+from skmultilearn.model_selection import IterativeStratification
 from dataloaders.cinc2020.preprocess import Processor
 
 
 # MARI RIC: Assume _flattened exists :)
 # input_dir = "data/2020_flattened"
-input_dir = "data/2020_tiny"
+input_dir = "data/cinc2020_tiny"
 
 eq_classes = np.array([
     ["713427006", "59118001"],
@@ -23,18 +23,18 @@ labels_map = mappings["SNOMED CT Code"].values
 
 
 def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str, str]:
-    processed_dir_training = Path(source_dir).parent / "cinc2020_processed_training"
+    processed_dir_training = Path(source_dir) / "cinc2020_processed_training"
     processed_dir_training.mkdir(exist_ok=True)
 
-    processed_dir_testing = Path(source_dir).parent / "cinc2020_processed_testing"
+    processed_dir_testing = Path(source_dir) / "cinc2020_processed_testing"
     processed_dir_testing.mkdir(exist_ok=True)
 
-    processed_dir_validating = Path(source_dir).parent / "cinc2020_processed_validating"
+    processed_dir_validating = Path(source_dir) / "cinc2020_processed_validating"
     processed_dir_validating.mkdir(exist_ok=True)
 
     return processed_dir_training, processed_dir_testing, processed_dir_validating
 
-def get_labels_binary_encoded(record) -> np.ndarray:
+def get_labels(record) -> np.ndarray:
     diagnosis_string = record.comments[2].split(": ", 1)[1].strip()
     diagnosis_list = diagnosis_string.split(",")
 
@@ -52,43 +52,83 @@ def get_labels_binary_encoded(record) -> np.ndarray:
     return np.isin(labels_map, diagnosis_list).astype(int)
 
 def get_record_paths_and_labels_binary_encoded_list(input_dir: str) -> tuple[list[str],list[list[int]]]:
-    # Allocate mem for records list and labels list
+    # 
+    # Get the directory containing the current script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    relative_path =input_dir
+    absolute_path = os.path.join(script_dir, relative_path)
+
+    # Allocate memory for records list and labels list
     record_paths: list[str] = []
     labels_binary_encoded_list: list[list[int]] = []
 
     # Process each record and save to the appropriate directory
-    for dirpath, dirnames, filenames in os.walk(input_dir):
+    for dirpath, dirnames, filenames in os.walk(absolute_path):
         for filename in filenames:
             if filename.endswith(".hea"):
                 record_path = os.path.join(dirpath, filename.split(".")[0]) # keep path + filename without extension (so no difference between .hea and .mat)
                 record_paths.append(record_path)
                 # Get labels from the content of the .hea file [MARI: sorry I went fully functional]
                 record = wfdb.rdrecord(record_path)
-                labels_binary_encoded = get_labels_binary_encoded(record)
+                labels_binary_encoded = get_labels(record)
                 labels_binary_encoded_list.append(labels_binary_encoded)
+    print(f"Record paths length: {len(record_paths)} \nLabels length: {len(labels_binary_encoded_list)} \n")
     return record_paths, labels_binary_encoded_list
+
+
+def iterative_train_test_split(X, y, train_size, n_splits=3):
+    """Iteratively stratified train/test split
+
+    Parameters
+    ----------
+    train_size : float, [0,1]
+        the proportion of the dataset to include in the train split, the rest will be split between test and validation sets
+
+    Returns
+    -------
+     X_train, y_train, X_test, y_test, X_val, y_val
+        stratified division into train/test/validate split
+    """
+    test_size = (1.0-train_size)/2
+    sample_distribution_per_fold = [train_size, test_size, 1-train_size-test_size]
+
+    stratifier = IterativeStratification(n_splits=n_splits, order=2, sample_distribution_per_fold=sample_distribution_per_fold)
+
+    splits = []
+    for _, set_indexes in stratifier.split(X, y):
+        # get X and y for this fold
+        print(f" set_indexes: {set_indexes} \n ")
+        splits.append(set_indexes)
+
+    train_indexes = splits[0]
+    test_indexes = splits[1]
+    val_indexes = splits[2]
+
+    X_train, y_train = X[train_indexes], y[train_indexes, :]
+    X_test, y_test = X[test_indexes], y[test_indexes, :]
+    X_val, y_val = X[val_indexes], y[val_indexes, :]
+    print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape} \n X_test shape: {X_test.shape}, y_test shape: {y_test.shape} \n X_val shape: {X_val.shape}, y_val shape: {y_val.shape} \n")
+
+    return X_train, y_train, X_test, y_test, X_val, y_val
+
 
 def split_data_using_stratification(record_paths: list[str], labels_binary_encoded_list: list[list[int]]) -> tuple[list[str],list[str],list[str]]:
     # Convert lists to arrays
     X = np.array(record_paths)
     y = np.array(labels_binary_encoded_list)
+    print(f"\n X shape: {X.shape}, y shape: {y.shape} \n")
+
+
 
     # Perform iterative stratified split
     X_train, X_temp, y_train, y_temp = iterative_train_test_split(
         X,
         y,
-        test_size=0.2,  # 0.8 train ?
-        random_state=42,  # For reproducibility
-        stratify=y
+        train_size=0.5,  # 0.8 train ?
+        n_splits=3,
     )
 
-    X_val, X_test, y_val, y_test = iterative_train_test_split(
-        X_temp,
-        y_temp,
-        test_size=0.5,  # Half test half validate
-        random_state=42,  # For reproducibility
-        stratify=y_temp
-    )
+
     
     # Convert arrays back to lists
     X_train = X_train.tolist()
@@ -109,6 +149,8 @@ def preprocess_dataset(source_dir: str):
     # Now, stratifyyyyyyy :star:
     record_paths_train, record_paths_test, record_paths_val = split_data_using_stratification(record_paths, labels_binary_encoded_list)
     
+    print(f"\n\n Record paths train length: {len(record_paths_train)} \n Record paths test length: {len(record_paths_test)}")
+
     # Initialize the processor TODO check the paths are correct lol
     processor = Processor(input_dir)
     processor.process_records(record_paths_train, processed_dir_training)
@@ -129,10 +171,7 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) >= 2:
-        print("Entering pre-processing mode")
-        preprocess_dataset(sys.argv[1])
+        print("\n Entering pre-processing mode \n")
+        preprocess_dataset(sys.argv[1]) #input: data
     else:
         print("Usage: python preprocess_dataset.py <path_to_cinc2020_directory>")
-
-
-    
