@@ -128,9 +128,9 @@ def preprocess_dataset(source_dir: str):
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) >= 2 and sys.argv[1] == "lets-go":
+    if len(sys.argv) >= 2:
         print("Entering pre-processing mode")
-        preprocess_dataset()
+        preprocess_dataset(sys.argv[1])
     else:
         print("Usage: python preprocess_dataset.py <path_to_cinc2020_directory>")
 
