@@ -451,7 +451,6 @@ def compute_confusion_matrices(labels, outputs, normalize=False):
                 elif labels[i, j] == 0 and outputs[i, j] == 0:  # TN
                     A[j, 0, 0] += 1
                 else:  # This condition should not happen.
-                    breakpoint()
                     raise ValueError("Error in computing the confusion matrix.")
     else:
         A = np.zeros((num_classes, 2, 2))
