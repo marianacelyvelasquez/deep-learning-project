@@ -104,12 +104,12 @@ def iterative_train_test_split(X, y, train_size, n_splits=3):
     test_indexes = splits[1]
     val_indexes = splits[2]
 
-    X_train, y_train = X[train_indexes], y[train_indexes, :]
-    X_test, y_test = X[test_indexes], y[test_indexes, :]
-    X_val, y_val = X[val_indexes], y[val_indexes, :]
-    print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape} \n X_test shape: {X_test.shape}, y_test shape: {y_test.shape} \n X_val shape: {X_val.shape}, y_val shape: {y_val.shape} \n")
+    X_train = X[train_indexes]
+    X_test = X[test_indexes]
+    X_val = X[val_indexes]
+    print(f"X_train shape: {X_train.shape} \n X_test shape: {X_test.shape} \n X_val shape: {X_val.shape} \n")
 
-    return X_train, y_train, X_test, y_test, X_val, y_val
+    return X_train, X_test, X_val
 
 
 def split_data_using_stratification(record_paths: list[str], labels_binary_encoded_list: list[list[int]]) -> tuple[list[str],list[str],list[str]]:
@@ -121,15 +121,13 @@ def split_data_using_stratification(record_paths: list[str], labels_binary_encod
 
 
     # Perform iterative stratified split
-    X_train, X_temp, y_train, y_temp = iterative_train_test_split(
+    X_train, X_test, X_val = iterative_train_test_split(
         X,
         y,
         train_size=0.5,  # 0.8 train ?
         n_splits=3,
     )
 
-
-    
     # Convert arrays back to lists
     X_train = X_train.tolist()
     X_val = X_val.tolist()
@@ -149,7 +147,7 @@ def preprocess_dataset(source_dir: str):
     # Now, stratifyyyyyyy :star:
     record_paths_train, record_paths_test, record_paths_val = split_data_using_stratification(record_paths, labels_binary_encoded_list)
     
-    print(f"\n\n Record paths train length: {len(record_paths_train)} \n Record paths test length: {len(record_paths_test)}")
+    print(f"\n\nRecord paths train length: {len(record_paths_train)} \nRecord paths test length: {len(record_paths_test)}, \nRecord paths val length: {len(record_paths_val)} \n")
 
     # Initialize the processor TODO check the paths are correct lol
     processor = Processor(input_dir)
