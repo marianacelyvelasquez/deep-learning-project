@@ -2,7 +2,7 @@ import csv
 import os
 import numpy as np
 import numpy.typing as npt
-from sklearn.metrics import multilabel_confusion_matrix
+from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
 
 
 class MetricsManager:
@@ -77,6 +77,12 @@ class MetricsManager:
             self.fn[epoch][class_i] += fn
             self.fp[epoch][class_i] += fp
             self.tn[epoch][class_i] += tn
+
+        # Compute AP here because we don't have access to y_true and y_pred after
+        self.AP[epoch] = average_precision_score(y_trues, y_preds)
+        self.AP_micro[epoch] = average_precision_score(
+            y_trues, y_preds, average="micro"
+        )
 
     def update_loss(self, loss, epoch, batch_i):
         self.loss[epoch][batch_i] = loss.detach().cpu()
@@ -186,6 +192,7 @@ class MetricsManager:
             "F1",
             "F2",
             "Jaccard",
+            "AP",
         ]
         num_classes = 24  # Assuming 24 classes
 
@@ -207,6 +214,7 @@ class MetricsManager:
                 self.f1[epoch, class_i],
                 self.f2[epoch, class_i],
                 self.g2[epoch, class_i],
+                self.AP[epoch, class_i],
             ]
             row = f"{(class_i + 1):>6} | " + " | ".join(
                 [f"{value:10.4f}" for value in metrics_values]
@@ -226,6 +234,7 @@ class MetricsManager:
             "F1",
             "F2",
             "Jaccard",
+            "AP (micro)",
         ]
 
         # Print the header
@@ -243,6 +252,7 @@ class MetricsManager:
             self.f1_micro[epoch],
             self.f2_micro[epoch],
             self.g2_micro[epoch],
+            self.AP_micro[epoch],
         ]
 
         row = "".join([f"{value:10.4f}" for value in metrics_values])
