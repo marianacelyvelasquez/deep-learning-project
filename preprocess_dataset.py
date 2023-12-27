@@ -34,6 +34,23 @@ def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str
 
     return processed_dir_training, processed_dir_testing, processed_dir_validating
 
+def get_labels_binary_encoded(record) -> np.ndarray:
+    diagnosis_string = record.comments[2].split(": ", 1)[1].strip()
+    diagnosis_list = diagnosis_string.split(",")
+
+    # Replace diagnosis with equivalent class if necessary
+    for diagnosis in diagnosis_list:
+        if diagnosis in eq_classes[:, 1]:
+            eq_class = eq_classes[eq_classes[:, 1] == diagnosis][0][0]
+            diagnosis_list = [
+        eq_class if x == diagnosis else x for x in diagnosis_list
+            ]
+
+    diagnosis_list = [int(diagnosis) for diagnosis in diagnosis_list]
+
+    # Binary encode labels. 1 if label is present, 0 if not.
+    return np.isin(labels_map, diagnosis_list).astype(int)
+
 def get_record_paths_and_labels_binary_encoded_list(input_dir: str) -> tuple[list[str],list[list[int]]]:
     # Allocate mem for records list and labels list
     record_paths: list[str] = []
@@ -80,23 +97,6 @@ def split_data_using_stratification(record_paths: list[str], labels_binary_encod
 
     return X_train, X_test, X_val
 
-def get_labels_binary_encoded(record):
-    diagnosis_string = record.comments[2].split(": ", 1)[1].strip()
-    diagnosis_list = diagnosis_string.split(",")
-
-    # Replace diagnosis with equivalent class if necessary
-    for diagnosis in diagnosis_list:
-        if diagnosis in eq_classes[:, 1]:
-            eq_class = eq_classes[eq_classes[:, 1] == diagnosis][0][0]
-            diagnosis_list = [
-        eq_class if x == diagnosis else x for x in diagnosis_list
-            ]
-
-    diagnosis_list = [int(diagnosis) for diagnosis in diagnosis_list]
-
-    # Binary encode labels. 1 if label is present, 0 if not.
-    return np.isin(labels_map, diagnosis_list).astype(int)
-
 
 
 def preprocess_dataset(source_dir: str):
@@ -107,13 +107,13 @@ def preprocess_dataset(source_dir: str):
     record_paths, labels_binary_encoded_list = get_record_paths_and_labels_binary_encoded_list(input_dir)
 
     # Now, stratifyyyyyyy :star:
-    X_train, X_test, X_val = split_data_using_stratification(record_paths, labels_binary_encoded_list)
+    record_paths_train, record_paths_test, record_paths_val = split_data_using_stratification(record_paths, labels_binary_encoded_list)
     
     # Initialize the processor TODO check the paths are correct lol
     processor = Processor(input_dir)
-    processor.process_records(X_train, processed_dir_training)
-    processor.process_records(X_test, processed_dir_testing)
-    processor.process_records(X_val, processed_dir_validating)
+    processor.process_records(record_paths_train, processed_dir_training)
+    processor.process_records(record_paths_test, processed_dir_testing)
+    processor.process_records(record_paths_val, processed_dir_validating)
 
 
     # # TODO: copy .mat files to directories
