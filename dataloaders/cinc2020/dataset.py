@@ -6,11 +6,13 @@ import wfdb.processing
 from torch.utils.data import Dataset
 from pathlib import Path
 
+from experiments.dilated_CNN.config import Config
+
 
 class Cinc2020Dataset(Dataset):
     def __init__(self):
         # self.root_dir = "data/cinc2020/training"
-        self.root_dir = "data/cinc2020_flattened"
+        self.root_dir = Config.DATA_DIR
         self.records = []
 
         self.eq_classes = np.array(

@@ -9,6 +9,8 @@ import torch
 from utils.loss import BinaryFocalLoss
 import utils.evaluate_12ECG_score as cinc_eval
 
+from experiments.dilated_CNN.config import Config
+
 from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from torch.utils.data import DataLoader
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
@@ -60,25 +62,35 @@ class dilatedCNNExperiment:
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.train_loader),
-            output="output/train_metrics.csv",
+            output=os.path.join(
+                Config.OUTPUT_DIR, Config.EXP_NAME, "metrics", "train_metrics.csv"
+            ),
         )
 
         self.validation_metrics_manager = MetricsManager(
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.validation_loader),
-            output="output/validation_metrics.csv",
+            output=os.path.join(
+                Config.OUTPUT_DIR, Config.EXP_NAME, "metrics", "validation_metrics.csv"
+            ),
         )
 
         self.test_metrics_manager = MetricsManager(
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.test_loader),
-            output="output/test_metrics.csv",
+            output=os.path.join(
+                Config.OUTPUT_DIR, Config.EXP_NAME, "metrics", "test_metrics.csv"
+            ),
         )
 
     def save_prediction(
-        self, filenames, y_preds, y_probs, output_dir="output/predictions"
+        self,
+        filenames,
+        y_preds,
+        y_probs,
+        output_dir=os.path.join(Config.OUTPUT_DIR, Config.EXP_NAME, "predictions"),
     ):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -284,7 +296,10 @@ class dilatedCNNExperiment:
                         filenames, predictions, predictions_probabilities
                     )
                     self.save_label(
-                        filenames, "data/cinc2020_flattened", "output", "training"
+                        filenames,
+                        Config.DATA_DIR,
+                        Config.OUTPUT_DIR,
+                        "training",
                     )
 
                     loss.backward()
@@ -342,10 +357,13 @@ class dilatedCNNExperiment:
                             )
 
                             self.save_prediction(filenames, labels, predictions)
+
+                            # TODO: Dont pass config, just use it inside the function.
+                            # Do it for all save_label calls.
                             self.save_label(
                                 filenames,
-                                "data/cinc2020_flattened",
-                                "output",
+                                Config.DATA_DIR,
+                                Config.OUTPUT_DIR,
                                 "validation",
                             )
 
@@ -382,7 +400,7 @@ class dilatedCNNExperiment:
 
                         self.save_prediction(filenames, labels, predictions)
                         self.save_label(
-                            filenames, "data/cinc2020_flattened", "output", "test"
+                            filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
                         )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
