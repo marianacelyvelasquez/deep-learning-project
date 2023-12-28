@@ -135,11 +135,14 @@ class Processor:
         filename = os.path.basename(string_filename)
 
         mat_file_source = filename + "m.mat"
-        mat_file_target = os.path.join(data_dir, filename + ".mat")
+        mat_file_target = os.path.join(data_dir, filename + "m.mat")
         shutil.move(mat_file_source, mat_file_target)
 
         hea_file_source = filename + "m.hea"
-        os.remove(hea_file_source)
+        hea_file_original = os.path.join(data_dir, filename + ".hea")
+        hea_file_target = os.path.join(data_dir, filename + "m.hea")
+        shutil.move(hea_file_source, hea_file_target)
+        os.remove(hea_file_original)
 
         dat_file = os.path.join(data_dir, filename + ".dat")
         os.remove(dat_file)
