@@ -109,7 +109,7 @@ def iterative_train_test_split(X, y, train_size, n_splits=3):
     splits = []
     for _, set_indexes in stratifier.split(X, y):
         # get X and y for this fold
-        print(f" set_indexes: {set_indexes} \n ")
+        # print(f" set_indexes: {set_indexes} \n ")
         splits.append(set_indexes)
 
     train_indexes = splits[0]
@@ -132,7 +132,7 @@ def split_data_using_stratification(
     # Convert lists to arrays
     X = np.array(record_paths)
     y = np.array(labels_binary_encoded_list)
-    print(f"\n X shape: {X.shape}, y shape: {y.shape} \n")
+    # print(f"\n X shape: {X.shape}, y shape: {y.shape} \n")
 
     # Perform iterative stratified split
     X_train, X_test, X_val = iterative_train_test_split(
@@ -171,9 +171,9 @@ def preprocess_dataset(source_dir: str):
         record_paths_val,
     ) = split_data_using_stratification(record_paths, labels_binary_encoded_list)
 
-    print(
-        f"\n\nRecord paths train length: {len(record_paths_train)} \nRecord paths test length: {len(record_paths_test)}, \nRecord paths val length: {len(record_paths_val)} \n"
-    )
+    # print(
+    #     f"\n\nRecord paths train length: {len(record_paths_train)} \nRecord paths test length: {len(record_paths_test)}, \nRecord paths val length: {len(record_paths_val)} \n"
+    # )
 
     # Initialize the processor TODO check the paths are correct lol
     processor = Processor(source_dir)
