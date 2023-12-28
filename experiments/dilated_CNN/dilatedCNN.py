@@ -259,8 +259,23 @@ class dilatedCNNExperiment:
     def setup_loss_fn(self):
         # pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1
         # TODO: Make sure the values we compute make sense
-        pos_weights = ((self.calc_pos_weights(self.train_loader) - 1) * 0.5) + 1
 
+        # 1. Calculate class weights based on training data
+        pos_weights = self.calc_pos_weights(self.train_loader)
+
+        # 2. Adjust weights: subtract 1, halve the result, then add 1
+        # Subtracting 1 ensures that the most frequent class (which has a weight
+        # of 1) will now have a weight of 0, and all other classes will have
+        # their weights reduced by 1.  Multiplying by 0.5 reduces the difference
+        # between the weights of different classes, making the weights less
+        # extreme.  Adding 1 ensures that the weights are not less than 1, which
+        # would give more importance to the more frequent classes, the opposite
+        # of what we want when dealing with class imbalance.
+        pos_weights = ((pos_weights - 1) * 0.5) + 1
+
+        # pos_weights = ((self.calc_pos_weights(self.train_loader) - 1) * 0.5) + 1
+
+        # 3. Set up Binary Focal Loss function with adjusted weights
         loss_fn = BinaryFocalLoss(
             device=self.device,
             gamma=2,
@@ -282,15 +297,19 @@ class dilatedCNNExperiment:
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                     self.optimizer.zero_grad()
 
-                    waveforms = waveforms.float().to(self.device)
-                    labels = labels.float().to(self.device)
                     # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                     # So we have to convert it using .float()
+                    waveforms = waveforms.float().to(self.device)
+                    labels = labels.float().to(self.device)
+
                     predictions_logits = self.model(waveforms)
 
+                    # We compute the loss on the logits, not the probabilities
+                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
+
+                    # Convert logits to probabilities and round to get predictions
                     predictions_probabilities = torch.sigmoid(predictions_logits)
                     predictions = torch.round(predictions_probabilities)
-                    loss = self.loss_fn(predictions, labels, self.model.training)
 
                     self.save_prediction(
                         filenames, predictions, predictions_probabilities
@@ -339,16 +358,24 @@ class dilatedCNNExperiment:
                         for batch_i, (filenames, waveforms, labels) in enumerate(
                             self.validation_loader
                         ):
+                            # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
+                            # So we have to convert it using .float()
                             waveforms = waveforms.float().to(self.device)
                             labels = labels.float().to(self.device)
 
-                            predictions = self.model(waveforms)
-                            predictions = torch.sigmoid(predictions)
-                            predictions = torch.round(predictions)
+                            predictions_logits = self.model(waveforms)
 
+                            # We compute the loss on the logits, not the probabilities
                             loss = self.loss_fn(
-                                predictions, labels, self.model.training
+                                predictions_logits, labels, self.model.training
                             )
+
+                            # Convert logits to probabilities and round to get predictions
+                            predictions_probabilities = torch.sigmoid(
+                                predictions_logits
+                            )
+                            predictions = torch.round(predictions_probabilities)
+
                             self.validation_metrics_manager.update_loss(
                                 loss, epoch, batch_i
                             )
@@ -377,7 +404,7 @@ class dilatedCNNExperiment:
             desc="Evaluate test data on dilated CNN.",
             total=len(self.test_loader),
         ) as pbar:
-            # Train
+            # Test
             for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                 with torch.no_grad():
                     last_epoch = self.num_epochs - 1
@@ -385,14 +412,22 @@ class dilatedCNNExperiment:
                     for batch_i, (filenames, waveforms, labels) in enumerate(
                         self.validation_loader
                     ):
+                        # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
+                        # So we have to convert it using .float()
                         waveforms = waveforms.float().to(self.device)
                         labels = labels.float().to(self.device)
 
-                        predictions = self.model(waveforms)
-                        predictions = torch.sigmoid(predictions)
-                        predictions = torch.round(predictions)
+                        predictions_logits = self.model(waveforms)
 
-                        loss = self.loss_fn(predictions, labels, self.model.training)
+                        # We compute the loss on the logits, not the probabilities
+                        loss = self.loss_fn(
+                            predictions_logits, labels, self.model.training
+                        )
+
+                        # Convert logits to probabilities and round to get predictions
+                        predictions_probabilities = torch.sigmoid(predictions_logits)
+                        predictions = torch.round(predictions_probabilities)
+
                         self.test_metrics_manager.update_loss(loss, last_epoch, batch_i)
                         self.test_metrics_manager.update_confusion_matrix(
                             labels, predictions, last_epoch
