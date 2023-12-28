@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import scipy.io
 import wfdb
+import wfdb.processing
 import wfdb.io.convert
 
 
@@ -42,6 +43,7 @@ class Processor:
 
         for record_path in record_paths:
             record = wfdb.rdrecord(record_path)
+            print("record_path: ", record_path)
             ecg_signal = record.p_signal
             # print(f"first record.fmt {record.fmt} \n\n")
             # print("Number of channels:", record.n_sig)
@@ -60,6 +62,10 @@ class Processor:
             for chan in range(ecg_signal.shape[1]):
                 # Choose lead
                 x_tmp = ecg_signal[:, chan]
+
+                # TODO: Make this better.
+                # We replace nan with 0.0.
+                x_tmp = np.nan_to_num(x_tmp)
 
                 # Resample to target frequency if necessary
                 if fs != fs_target:
