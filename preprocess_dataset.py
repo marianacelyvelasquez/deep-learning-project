@@ -23,13 +23,13 @@ labels_map = mappings["SNOMED CT Code"].values
 
 
 def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str, str]:
-    processed_dir_training = Path(source_dir) / "cinc2020_processed_training"
+    processed_dir_training = Path(source_dir).parent / "cinc2020_processed_training"
     processed_dir_training.mkdir(exist_ok=True)
 
-    processed_dir_testing = Path(source_dir) / "cinc2020_processed_testing"
+    processed_dir_testing = Path(source_dir).parent / "cinc2020_processed_testing"
     processed_dir_testing.mkdir(exist_ok=True)
 
-    processed_dir_validating = Path(source_dir) / "cinc2020_processed_validating"
+    processed_dir_validating = Path(source_dir).parent / "cinc2020_processed_validating"
     processed_dir_validating.mkdir(exist_ok=True)
 
     return processed_dir_training, processed_dir_testing, processed_dir_validating
