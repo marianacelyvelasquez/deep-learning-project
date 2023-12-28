@@ -38,7 +38,6 @@ class Processor:
         # doesn't label any specific time point in the time series. Instead, it
         # labels the whole time series with a diagnosis.
 
-        #TODO: *not* transpose ecg_signal because it won't work with wfdb.io.wrsamp
         for record_path in record_paths:
             record = wfdb.rdrecord(record_path)
             ecg_signal = record.p_signal
@@ -50,7 +49,7 @@ class Processor:
             fs_target = 500  # Target sampling frequency
             duration = 10  # seconds
             N = duration * fs_target  # Number of time points in target timeseries
-            lx = np.zeros((ecg_signal.shape[1], N))  # Allocate memory
+            lx = np.zeros((N, ecg_signal.shape[1]))  # Allocate memory
             print(f"ecg_signal shape: {ecg_signal.shape} \n\n")
 
             # We loop over all 12 leads/channels and resample them to the target frequency.
@@ -73,7 +72,8 @@ class Processor:
                         # It's important we append the zeros because
                         # our data has a "temporal direction".
                         x_tmp = np.pad(x_tmp, (0, N - len(x_tmp)))
-                lx[chan] = x_tmp
+                x_tmp = np.resize(x_tmp, (N,))
+                lx[:,chan] = x_tmp
 
             # TODO: We should probably normalize the signal to zero mean and unit variance.
             # I think we do that in the dataloader though.
