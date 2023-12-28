@@ -15,6 +15,7 @@ class Cinc2020Dataset(Dataset):
         self.root_dir = Config.DATA_DIR
         self.records = records
 
+        # Equivalence classes
         self.eq_classes = np.array(
             [
                 ["713427006", "59118001"],
