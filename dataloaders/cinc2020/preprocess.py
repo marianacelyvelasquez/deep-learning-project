@@ -37,6 +37,8 @@ class Processor:
         # to add labels to any element in the time series. The CINC2020 dataset
         # doesn't label any specific time point in the time series. Instead, it
         # labels the whole time series with a diagnosis.
+
+        #TODO: *not* transpose ecg_signal because it won't work with wfdb.io.wrsamp
         for record_path in record_paths:
             record = wfdb.rdrecord(record_path)
             ecg_signal = record.p_signal
