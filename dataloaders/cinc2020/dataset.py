@@ -10,10 +10,10 @@ from experiments.dilated_CNN.config import Config
 
 
 class Cinc2020Dataset(Dataset):
-    def __init__(self):
+    def __init__(self, records):
         # self.root_dir = "data/cinc2020/training"
         self.root_dir = Config.DATA_DIR
-        self.records = []
+        self.records = records
 
         self.eq_classes = np.array(
             [
@@ -36,12 +36,14 @@ class Cinc2020Dataset(Dataset):
         # TODO: Somehow fix the ordering of the samples for reproducibility.
 
         # Loop over contents of all subdirectories
+        """
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
             # Read all records from a current g* subdirectory.
             for filename in filenames:
                 if filename.endswith(".hea"):
                     record_path = os.path.join(dirpath, filename.split(".")[0])
                     self.records.append(record_path)
+        """
 
     def __len__(self):
         return len(self.records)

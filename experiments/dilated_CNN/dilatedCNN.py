@@ -41,13 +41,10 @@ class dilatedCNNExperiment:
             test_loader,
         ) = self.setup_datasets()
 
-        self.train_dataset = train_data
         self.train_loader = train_loader
 
-        self.validation_dataset = validation_data
         self.validation_loader = validation_loader
 
-        self.test_dataset = test_data
         self.test_loader = test_loader
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
@@ -56,30 +53,24 @@ class dilatedCNNExperiment:
         self.num_epochs = 2
 
         self.train_metrics_manager = MetricsManager(
+            name="train",
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.train_loader),
-            output=os.path.join(
-                Config.OUTPUT_DIR, Config.EXP_NAME, "metrics", "train_metrics.csv"
-            ),
         )
 
         self.validation_metrics_manager = MetricsManager(
+            name="validation",
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.validation_loader),
-            output=os.path.join(
-                Config.OUTPUT_DIR, Config.EXP_NAME, "metrics", "validation_metrics.csv"
-            ),
         )
 
         self.test_metrics_manager = MetricsManager(
+            name="test",
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.test_loader),
-            output=os.path.join(
-                Config.OUTPUT_DIR, Config.EXP_NAME, "metrics", "test_metrics.csv"
-            ),
         )
 
     def save_prediction(
@@ -209,12 +200,34 @@ class dilatedCNNExperiment:
 
         return torch.Tensor(np.around(freq.max() / freq, decimals=1))
 
-    def setup_datasets(self):
+    def read_records(self, source_dir):
+        records = []
+        for dirpath, dirnames, filenames in os.walk(source_dir):
+            # Read all records from a current g* subdirectory.
+            for filename in filenames:
+                if filename.endswith(".hea"):
+                    record_path = os.path.join(dirpath, filename.split(".")[0])
+                    records.append(record_path)
 
-        train_loader = DataLoader(train_data, batch_size=128, shuffle=False)
-        test_loader = DataLoader(test_data, batch_size=128, shuffle=False)
-        validation_loader = DataLoader(validation_data, batch_size=128, shuffle=False)
- 
+        return records
+
+    def setup_datasets(self):
+        # Read data
+        train_data = self.read_records(Config.TRAIN_DATA_DIR)
+        test_data = self.read_records(Config.TEST_DATA_DIR)
+        validation_data = self.read_records(Config.VAL_DATA_DIR)
+
+        # Create datasets
+        train_dataset = Cinc2020Dataset(train_data)
+        test_dataset = Cinc2020Dataset(test_data)
+        validation_dataset = Cinc2020Dataset(validation_data)
+
+        train_loader = DataLoader(train_dataset, batch_size=128, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
+        validation_loader = DataLoader(
+            validation_dataset, batch_size=128, shuffle=False
+        )
+
         train_freq = self.get_label_frequencies(train_loader) / len(train_loader)
         test_freq = self.get_label_frequencies(test_loader) / len(test_loader)
         validation_freq = self.get_label_frequencies(validation_loader) / len(
@@ -295,12 +308,12 @@ class dilatedCNNExperiment:
                     self.save_prediction(
                         filenames, predictions, predictions_probabilities
                     )
-                    self.save_label(
-                        filenames,
-                        Config.DATA_DIR,
-                        Config.OUTPUT_DIR,
-                        "training",
-                    )
+                    # self.save_label(
+                    #     filenames,
+                    #     Config.DATA_DIR,
+                    #     Config.OUTPUT_DIR,
+                    #     "training",
+                    # )
 
                     loss.backward()
                     self.optimizer.step()
@@ -368,12 +381,12 @@ class dilatedCNNExperiment:
 
                             # TODO: Dont pass config, just use it inside the function.
                             # Do it for all save_label calls.
-                            self.save_label(
-                                filenames,
-                                Config.DATA_DIR,
-                                Config.OUTPUT_DIR,
-                                "validation",
-                            )
+                            # self.save_label(
+                            #     filenames,
+                            #     Config.DATA_DIR,
+                            #     Config.OUTPUT_DIR,
+                            #     "validation",
+                            # )
 
                 self.validation_metrics_manager.compute_micro_averages(epoch)
                 self.validation_metrics_manager.report_micro_averages(epoch)
@@ -415,9 +428,9 @@ class dilatedCNNExperiment:
                         )
 
                         self.save_prediction(filenames, labels, predictions)
-                        self.save_label(
-                            filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
-                        )
+                        # self.save_label(
+                        #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
+                        # )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
             self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)

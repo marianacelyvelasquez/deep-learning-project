@@ -2,11 +2,13 @@ import csv
 import os
 import numpy as np
 import numpy.typing as npt
+
 from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
+from experiments.dilated_CNN.config import Config
 
 
 class MetricsManager:
-    def __init__(self, num_epochs, num_classes, num_batches, output):
+    def __init__(self, name, num_epochs, num_classes, num_batches):
         # True Positives
         self.tp: npt.NDArray[np.int_] = np.zeros((num_epochs, num_classes))
         # False Negatives
@@ -18,7 +20,12 @@ class MetricsManager:
 
         self.loss: npt.NDArray[np.float_] = np.zeros((num_epochs, num_batches))
 
-        self.output = output
+        self.output_file = os.path.join(
+            Config.OUTPUT_DIR, "metrics", f"{name}_metrics.csv"
+        )
+
+        if not os.path.exists(os.path.dirname(self.output_file)):
+            os.makedirs(os.path.dirname(self.output_file))
 
         # TODO: Implement
         self.challenge_metric: npt.NDArray[np.float_] = np.zeros(
@@ -263,12 +270,12 @@ class MetricsManager:
         # Determine the file mode - overwrite if it's the first epoch and file exists
         file_mode = (
             "w"
-            if epoch == 0 and os.path.exists(self.output) or rewrite is True
+            if epoch == 0 and os.path.exists(self.output_file) or rewrite is True
             else "a"
         )
 
         # Append the metrics for the current epoch to the CSV file
-        with open(self.output, file_mode, newline="") as csvfile:
+        with open(self.output_file, file_mode, newline="") as csvfile:
             csvwriter = csv.writer(csvfile)
 
             # Write header if it's the first epoch
