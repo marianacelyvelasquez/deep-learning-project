@@ -5,12 +5,11 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from skmultilearn.model_selection import IterativeStratification
+from experiments.dilated_CNN.config import Config
 from dataloaders.cinc2020.preprocess import Processor
 from common.common import eq_classes
 
 # MARI RIC: Assume _flattened exists :)
-# input_dir = "data/2020_flattened"
-# input_dir = "data/cinc2020_tiny"
 
 
 
@@ -19,13 +18,14 @@ labels_map = mappings["SNOMED CT Code"].values
 
 
 def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str, str]:
-    processed_dir_training = Path(source_dir).parent / "cinc2020_processed_training"
+    processed_dir_training = Config.TRAIN_DATA_DIR
     processed_dir_training.mkdir(exist_ok=True)
 
-    processed_dir_testing = Path(source_dir).parent / "cinc2020_processed_testing"
+    processed_dir_testing = Config.TEST_DATA_DIR
     processed_dir_testing.mkdir(exist_ok=True)
 
-    processed_dir_validating = Path(source_dir).parent / "cinc2020_processed_validating"
+    #Validation set will no longer be used
+    processed_dir_validating = Config.TEST_DATA_DIR
     processed_dir_validating.mkdir(exist_ok=True)
 
     return processed_dir_training, processed_dir_testing, processed_dir_validating
@@ -186,13 +186,12 @@ def preprocess_dataset(source_dir: str):
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) >= 2:
+    if len(sys.argv) == 2:
         print("\n Entering pre-processing mode \n")
         data_source_dir = sys.argv[1]
-        output_dir = sys.argv[2]
 
-        train_data_dir = os.path.join(output_dir, "cinc2020_processed_training")
-        test_data_dir = os.path.join(output_dir, "cinc2020_processed_testing")
+        train_data_dir = Config.TRAIN_DATA_DIR
+        test_data_dir = Config.TEST_DATA_DIR
 
         if not os.path.exists(train_data_dir):
             os.makedirs(train_data_dir)
@@ -231,8 +230,8 @@ if __name__ == "__main__":
         X_train = X[train_indexes]
         X_test = X[test_indexes]
 
-        processor = Processor(data_source_dir)
+        processor = Processor()
         processor.process_records(X_train, train_data_dir)
         processor.process_records(X_test, test_data_dir)
     else:
-        print("Usage: python preprocess_dataset.py <data_source_dir> <output_dir>")
+        print("Usage: python preprocess_dataset.py <data_source_dir>")
