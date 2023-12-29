@@ -11,9 +11,7 @@ from common.common import eq_classes
 
 
 class Processor:
-    def __init__(self, input_dir):
-        # input_dir could be "data/cinc2020_flattened" or "data/cinc2020_tiny"
-        self.input_dir = input_dir
+    def __init__(self):
         self.eq_classes = eq_classes
 
         # Source: https://github.com/physionetchallenges/physionetchallenges.github.io/blob/master/2020/Dx_map.csv
