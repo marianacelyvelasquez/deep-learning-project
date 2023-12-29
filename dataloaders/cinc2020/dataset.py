@@ -8,6 +8,7 @@ from pathlib import Path
 
 from experiments.dilated_CNN.config import Config
 from common.common import eq_classes
+from dataloaders.cinc2020.common import labels_map
 
 class Cinc2020Dataset(Dataset):
     def __init__(self, X, y):
@@ -20,8 +21,7 @@ class Cinc2020Dataset(Dataset):
         self.eq_classes = eq_classes
 
         # Source: https://github.com/physionetchallenges/physionetchallenges.github.io/blob/master/2020/Dx_map.csv
-        mappings = pd.read_csv("data/cinc2020/label_cinc2020_top24.csv", delimiter=",")
-        self.labels_map = mappings["SNOMED CT Code"].values
+        self.labels_map = labels_map
 
         # NOTE: In each g* directory, there is a file RECORDS.
         # This file contains all the records in the given g* subdirectory

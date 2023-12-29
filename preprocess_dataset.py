@@ -8,13 +8,10 @@ from skmultilearn.model_selection import IterativeStratification
 from experiments.dilated_CNN.config import Config
 from dataloaders.cinc2020.preprocess import Processor
 from common.common import eq_classes
+from dataloaders.cinc2020.common import labels_map
 
 # MARI RIC: Assume _flattened exists :)
 
-
-
-mappings = pd.read_csv("data/cinc2020/label_cinc2020_top24.csv", delimiter=",")
-labels_map = mappings["SNOMED CT Code"].values
 
 
 def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str, str]:
