@@ -18,7 +18,7 @@ from utils.MetricsManager import MetricsManager
 
 
 class dilatedCNNExperiment:
-    def __init__(self):
+    def __init__(self, X_train, y_train, X_val, y_val, X_test, y_test):
         self.network_params = {
             "in_channels": 12,
             "channels": 108,
@@ -35,17 +35,24 @@ class dilatedCNNExperiment:
         # and then we split it. Change it to first read all the data, then split it using
         # iterative stratification, then create PyTorch Datasets out of those.
         # Resampling and padding can be done in the Dataset class.
-        (
-            train_loader,
-            validation_loader,
-            test_loader,
-        ) = self.setup_datasets()
+        # (
+        #     train_loader,
+        #     validation_loader,
+        #     test_loader,
+        # ) = self.setup_datasets()
 
-        self.train_loader = train_loader
+        # Create datasets
+        self.train_dataset = Cinc2020Dataset(X_train, y_train)
+        self.test_dataset = Cinc2020Dataset(X_test, y_test)
+        self.validation_dataset = Cinc2020Dataset(X_val, y_val)
 
-        self.validation_loader = validation_loader
-
-        self.test_loader = test_loader
+        self.train_loader = DataLoader(
+            self.train_dataset, batch_size=128, shuffle=False
+        )
+        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=False)
+        self.validation_loader = DataLoader(
+            self.validation_dataset, batch_size=128, shuffle=False
+        )
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
@@ -185,6 +192,7 @@ class dilatedCNNExperiment:
 
     def get_label_frequencies(self, loader):
         labels = []
+
         for _, _, label in loader:
             labels.append(label.numpy())
 
@@ -216,6 +224,10 @@ class dilatedCNNExperiment:
         train_data = self.read_records(Config.TRAIN_DATA_DIR)
         test_data = self.read_records(Config.TEST_DATA_DIR)
         validation_data = self.read_records(Config.VAL_DATA_DIR)
+
+        print("Number of training samples:", len(train_data))
+        print("Number of test samples:", len(test_data))
+        print("Number of validation samples:", len(validation_data))
 
         # Create datasets
         train_dataset = Cinc2020Dataset(train_data)
@@ -278,7 +290,7 @@ class dilatedCNNExperiment:
 
         return loss_fn
 
-    def run(self):
+    def run_epochs(self):
         for epoch in range(self.num_epochs):
             # Train
             self.model.train()

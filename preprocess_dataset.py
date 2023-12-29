@@ -194,6 +194,51 @@ if __name__ == "__main__":
 
     if len(sys.argv) >= 2:
         print("\n Entering pre-processing mode \n")
-        preprocess_dataset(sys.argv[1])  # input: data
+        data_source_dir = sys.argv[1]
+        output_dir = sys.argv[2]
+
+        train_data_dir = os.path.join(output_dir, "cinc2020_processed_training")
+        test_data_dir = os.path.join(output_dir, "cinc2020_processed_testing")
+
+        if not os.path.exists(train_data_dir):
+            os.makedirs(train_data_dir)
+
+        if not os.path.exists(test_data_dir):
+            os.makedirs(test_data_dir)
+
+        # Get lists of paths and labels
+        (
+            record_paths,
+            labels_binary_encoded_list,
+        ) = get_record_paths_and_labels_binary_encoded_list(data_source_dir)
+
+        X = np.array(record_paths)
+        y = np.array(labels_binary_encoded_list)
+
+        train_size = 0.8
+        test_size = 0.2
+        sample_distribution_per_fold = [train_size, test_size]
+
+        stratifier = IterativeStratification(
+            n_splits=2,
+            order=2,
+            sample_distribution_per_fold=sample_distribution_per_fold,
+        )
+
+        splits = []
+        for _, set_indexes in stratifier.split(X, y):
+            # get X and y for this fold
+            # print(f" set_indexes: {set_indexes} \n ")
+            splits.append(set_indexes)
+
+        train_indexes = splits[0]
+        test_indexes = splits[1]
+
+        X_train = X[train_indexes]
+        X_test = X[test_indexes]
+
+        processor = Processor(data_source_dir)
+        processor.process_records(X_train, train_data_dir)
+        processor.process_records(X_test, test_data_dir)
     else:
-        print("Usage: python preprocess_dataset.py <path_to_cinc2020_directory>")
+        print("Usage: python preprocess_dataset.py <data_source_dir> <output_dir>")

@@ -10,10 +10,11 @@ from experiments.dilated_CNN.config import Config
 
 
 class Cinc2020Dataset(Dataset):
-    def __init__(self, records):
+    def __init__(self, X, y):
         # self.root_dir = "data/cinc2020/training"
         self.root_dir = Config.DATA_DIR
-        self.records = records
+        self.records = X  # those are paths to the records
+        self.y = y
 
         # Equivalence classes
         self.eq_classes = np.array(
@@ -49,6 +50,18 @@ class Cinc2020Dataset(Dataset):
     def __len__(self):
         return len(self.records)
 
+    def __getitem__(self, idx):
+        record = wfdb.rdrecord(self.records[idx])
+
+        # Need to transpose the signal because that's simply
+        # what the model expects as input f ormat
+        ecg_signal = record.p_signal.transpose()
+
+        filename = Path(self.records[idx]).stem
+
+        return filename, ecg_signal, self.y[idx]
+
+    """
     def __getitem__(self, idx):
         # TODO: Is idx always an int? Does PyTorch handle returning whole batches for us?
 
@@ -128,24 +141,24 @@ class Cinc2020Dataset(Dataset):
         filename = Path(self.records[idx]).stem
 
         return filename, ecg_signal, labels_binary_encoded
+    """
+    """
+    # This is just needed for plotting:
+    # We need to create a record from the resampled signal so we can plot it.
+    record_resampled = wfdb.Record(
+        record_name='A0001',
+        n_sig=lx.shape[1],
+        fs=fs_target,
+        sig_len=lx.shape[0],
+        file_name='A0001',
+        fmt='212',
+        adc_gain=np.ones(lx.shape[1]),
+        baseline=np.zeros(lx.shape[1]),
+        units=np.array(['mV'] * lx.shape[1]),
+        sig_name=np.array(['ECG'] * lx.shape[1]),
+        p_signal=lx
+    )
 
-        """
-        # This is just needed for plotting:
-        # We need to create a record from the resampled signal so we can plot it.
-        record_resampled = wfdb.Record(
-            record_name='A0001',
-            n_sig=lx.shape[1],
-            fs=fs_target,
-            sig_len=lx.shape[0],
-            file_name='A0001',
-            fmt='212',
-            adc_gain=np.ones(lx.shape[1]),
-            baseline=np.zeros(lx.shape[1]),
-            units=np.array(['mV'] * lx.shape[1]),
-            sig_name=np.array(['ECG'] * lx.shape[1]),
-            p_signal=lx
-        )
-
-        wfdb.plot_wfdb(record=record)
-        wfdb.plot_wfdb(record=record_resampled)
-        """
+    wfdb.plot_wfdb(record=record)
+    wfdb.plot_wfdb(record=record_resampled)
+    """

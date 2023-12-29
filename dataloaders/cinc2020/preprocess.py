@@ -33,6 +33,31 @@ class Processor:
 
         # TODO: Somehow fix the ordering of the samples for reproducibility.
 
+    def select_segment(self, ecg_signal, duration, fs_target):
+        N = duration * fs_target
+        start_idx = 0
+        end_idx = N
+
+        while end_idx <= len(ecg_signal):
+            segment = ecg_signal[start_idx:end_idx]
+
+            # Check for zeros and move the window if necessary
+            if np.any(segment == 0):
+                start_idx += fs_target  # Move window by 1 second
+                end_idx += fs_target
+                continue
+
+            # Check for constant values in the segment
+            if len(np.unique(segment)) < (0.1 * N):  # Threshold for variety
+                start_idx += fs_target  # Move window by 1 second
+                end_idx += fs_target
+                continue
+
+            return segment
+
+        # If no suitable segment is found, return the initial N elements
+        return ecg_signal[:N]
+
     def process_records(self, record_paths, output_dir):
         # Read a ECG measurement (record) from the CINC2020 dataset.
         # It read the .mat and .hea file and creates a record object out of it.
@@ -74,7 +99,8 @@ class Processor:
                 # Fix to given duration if necessary
                 if len(x_tmp) > N:
                     # Take first {duration} seconds of resampled signal
-                    x_tmp = x_tmp[:N]
+                    # x_tmp = x_tmp[:N]
+                    x_tmp = self.select_segment(x_tmp, duration, fs_target)
                 elif len(x_tmp) < N:
                     # Right pad with zeros to given duration
                     # It's important we append the zeros because
