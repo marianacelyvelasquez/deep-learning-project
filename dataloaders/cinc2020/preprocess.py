@@ -7,19 +7,14 @@ import scipy.io
 import wfdb
 import wfdb.processing
 import wfdb.io.convert
+from common.common import eq_classes
 
 
 class Processor:
     def __init__(self, input_dir):
         # input_dir could be "data/cinc2020_flattened" or "data/cinc2020_tiny"
         self.input_dir = input_dir
-        self.eq_classes = np.array(
-            [
-                ["713427006", "59118001"],
-                ["284470004", "63593006"],
-                ["427172004", "17338001"],
-            ]
-        )
+        self.eq_classes = eq_classes
 
         # Source: https://github.com/physionetchallenges/physionetchallenges.github.io/blob/master/2020/Dx_map.csv
         mappings = pd.read_csv("data/cinc2020/label_cinc2020_top24.csv", delimiter=",")

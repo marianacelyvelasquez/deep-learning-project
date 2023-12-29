@@ -6,19 +6,13 @@ import pandas as pd
 from pathlib import Path
 from skmultilearn.model_selection import IterativeStratification
 from dataloaders.cinc2020.preprocess import Processor
-
+from common.common import eq_classes
 
 # MARI RIC: Assume _flattened exists :)
 # input_dir = "data/2020_flattened"
 # input_dir = "data/cinc2020_tiny"
 
-eq_classes = np.array(
-    [
-        ["713427006", "59118001"],
-        ["284470004", "63593006"],
-        ["427172004", "17338001"],
-    ]
-)
+
 
 mappings = pd.read_csv("data/cinc2020/label_cinc2020_top24.csv", delimiter=",")
 labels_map = mappings["SNOMED CT Code"].values
