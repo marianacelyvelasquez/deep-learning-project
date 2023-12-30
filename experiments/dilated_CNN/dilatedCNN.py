@@ -359,65 +359,8 @@ class dilatedCNNExperiment:
                 total=len(self.validation_loader),
             ) as pbar:
                 # Train
-                for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
-                    with torch.no_grad():
-                        for batch_i, (filenames, waveforms, labels) in enumerate(
-                            self.validation_loader
-                        ):
-                            # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
-                            # So we have to convert it using .float()
-                            waveforms = waveforms.float().to(self.device)
-                            labels = labels.float().to(self.device)
-
-                            predictions_logits = self.model(waveforms)
-
-                            # We compute the loss on the logits, not the probabilities
-                            loss = self.loss_fn(
-                                predictions_logits, labels, self.model.training
-                            )
-
-                            # Convert logits to probabilities and round to get predictions
-                            predictions_probabilities = torch.sigmoid(
-                                predictions_logits
-                            )
-                            predictions = torch.round(predictions_probabilities)
-
-                            self.validation_metrics_manager.update_loss(
-                                loss, epoch, batch_i
-                            )
-                            self.validation_metrics_manager.update_confusion_matrix(
-                                labels, predictions, epoch
-                            )
-
-                            self.save_prediction(filenames, labels, predictions)
-
-                            # TODO: Dont pass config, just use it inside the function.
-                            # Do it for all save_label calls.
-                            # self.save_label(
-                            #     filenames,
-                            #     Config.DATA_DIR,
-                            #     Config.OUTPUT_DIR,
-                            #     "validation",
-                            # )
-
-                self.validation_metrics_manager.compute_micro_averages(epoch)
-                self.validation_metrics_manager.report_micro_averages(epoch)
-
-        # TEST set evaluation
-        self.model.eval()
-        with tqdm(
-            self.test_loader,
-            desc="Evaluate test data on dilated CNN.",
-            total=len(self.test_loader),
-        ) as pbar:
-            # Test
-            for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                 with torch.no_grad():
-                    last_epoch = self.num_epochs - 1
-
-                    for batch_i, (filenames, waveforms, labels) in enumerate(
-                        self.validation_loader
-                    ):
+                    for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                         # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                         # So we have to convert it using .float()
                         waveforms = waveforms.float().to(self.device)
@@ -434,15 +377,62 @@ class dilatedCNNExperiment:
                         predictions_probabilities = torch.sigmoid(predictions_logits)
                         predictions = torch.round(predictions_probabilities)
 
-                        self.test_metrics_manager.update_loss(loss, last_epoch, batch_i)
-                        self.test_metrics_manager.update_confusion_matrix(
-                            labels, predictions, last_epoch
+                        self.validation_metrics_manager.update_loss(
+                            loss, epoch, batch_i
+                        )
+                        self.validation_metrics_manager.update_confusion_matrix(
+                            labels, predictions, epoch
                         )
 
                         self.save_prediction(filenames, labels, predictions)
+
+                        # TODO: Dont pass config, just use it inside the function.
+                        # Do it for all save_label calls.
                         # self.save_label(
-                        #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
+                        #     filenames,
+                        #     Config.DATA_DIR,
+                        #     Config.OUTPUT_DIR,
+                        #     "validation",
                         # )
+
+                self.validation_metrics_manager.compute_micro_averages(epoch)
+                self.validation_metrics_manager.report_micro_averages(epoch)
+
+        # TEST set evaluation
+        self.model.eval()
+        with tqdm(
+            self.test_loader,
+            desc="Evaluate test data on dilated CNN.",
+            total=len(self.test_loader),
+        ) as pbar:
+            # Test
+            with torch.no_grad():
+                for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                    last_epoch = self.num_epochs - 1
+
+                    # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
+                    # So we have to convert it using .float()
+                    waveforms = waveforms.float().to(self.device)
+                    labels = labels.float().to(self.device)
+
+                    predictions_logits = self.model(waveforms)
+
+                    # We compute the loss on the logits, not the probabilities
+                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
+
+                    # Convert logits to probabilities and round to get predictions
+                    predictions_probabilities = torch.sigmoid(predictions_logits)
+                    predictions = torch.round(predictions_probabilities)
+
+                    self.test_metrics_manager.update_loss(loss, last_epoch, batch_i)
+                    self.test_metrics_manager.update_confusion_matrix(
+                        labels, predictions, last_epoch
+                    )
+
+                    self.save_prediction(filenames, labels, predictions)
+                    # self.save_label(
+                    #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
+                    # )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
             self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)
