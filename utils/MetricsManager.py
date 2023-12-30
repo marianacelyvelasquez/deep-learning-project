@@ -285,13 +285,7 @@ class MetricsManager:
 
         print("\n")
         # Create a subfolder for each CV fold
-
-        output_path_with_CV_fold = os.path.join(self.output_folder, f"{CV_k}", f"{self.output_filename}")
-        if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
-            os.makedirs(os.path.dirname(output_path_with_CV_fold))
-
-        output_path_with_CV_fold = os.path.join(self.output_folder, f"{CV_k}", f"{self.output_filename}")
-
+        output_path_with_CV_fold = os.path.join(self.output_folder, f"Fold {CV_k}", f"{self.output_filename}")
         if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
             os.makedirs(os.path.dirname(output_path_with_CV_fold))
 
