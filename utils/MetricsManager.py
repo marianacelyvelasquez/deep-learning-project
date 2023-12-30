@@ -21,11 +21,11 @@ class MetricsManager:
 
         self.loss: npt.NDArray[np.float_] = np.zeros((num_epochs, num_batches))
 
-        self.output_file = os.path.join(Config.OUTPUT_DIR, "metrics")
+        self.output_folder = os.path.join(Config.OUTPUT_DIR, "metrics")
         self.output_filename = f"{name}_metrics.csv"
 
-        if not os.path.exists(os.path.dirname(self.output_file)):
-            os.makedirs(os.path.dirname(self.output_file))
+        if not os.path.exists(os.path.dirname(self.output_folder)):
+            os.makedirs(os.path.dirname(self.output_folder))
 
         # TODO: Implement
         self.challenge_metric: npt.NDArray[np.float_] = np.zeros(
@@ -284,8 +284,13 @@ class MetricsManager:
         print(row)
 
         print("\n")
+        # Create a subfolder for each CV fold
 
-        output_path_with_CV_fold = os.path.join(self.output_file, f"{CV_k}_{self.output_filename}")
+        output_path_with_CV_fold = os.path.join(self.output_folder, f"{CV_k}", f"{self.output_filename}")
+        if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
+            os.makedirs(os.path.dirname(output_path_with_CV_fold))
+
+        output_path_with_CV_fold = os.path.join(self.output_folder, f"{CV_k}", f"{self.output_filename}")
 
         if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
             os.makedirs(os.path.dirname(output_path_with_CV_fold))
@@ -320,5 +325,5 @@ class MetricsManager:
         plt.ylabel('Loss')
         plt.title('Training Loss over Epochs')
         plt.legend()
-        plt.savefig(os.path.join(self.output_file, f"{CV_k}_fold_loss_plot.png"))
+        plt.savefig(os.path.join(self.output_folder, f"{CV_k}", f"fold_loss_plot.png"))
         plt.close()
