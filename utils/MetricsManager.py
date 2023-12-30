@@ -21,9 +21,8 @@ class MetricsManager:
 
         self.loss: npt.NDArray[np.float_] = np.zeros((num_epochs, num_batches))
 
-        self.output_file = os.path.join(
-            Config.OUTPUT_DIR, "metrics", f"{name}_metrics.csv"
-        )
+        self.output_file = os.path.join(Config.OUTPUT_DIR, "metrics")
+        self.output_filename = f"{name}_metrics.csv"
 
         if not os.path.exists(os.path.dirname(self.output_file)):
             os.makedirs(os.path.dirname(self.output_file))
@@ -106,7 +105,7 @@ class MetricsManager:
     def update_loss(self, loss, epoch, batch_i):
         self.loss[epoch][batch_i] = loss.detach().cpu()
 
-    def compute_micro_averages(self, epoch):
+    def compute_micro_averages(self, epoch): # TODO: adapt to k-fold CV ?
         tp = np.sum(self.tp[epoch])
         fn = np.sum(self.fn[epoch])
         fp = np.sum(self.fp[epoch])
@@ -242,7 +241,7 @@ class MetricsManager:
 
         print("\n")
 
-    def report_micro_averages(self, epoch, rewrite=False):
+    def report_micro_averages(self, epoch, CV_k, rewrite=False): #k is the k-fold CV fold (starts at 0 ends at 9?)
         # Define the metrics to report
         metrics = [
             "Recall",
@@ -279,15 +278,20 @@ class MetricsManager:
 
         print("\n")
 
+        output_path_with_CV_fold = os.path.join(self.output_file, f"{CV_k}_{self.output_filename}")
+
+        if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
+            os.makedirs(os.path.dirname(output_path_with_CV_fold))
+
         # Determine the file mode - overwrite if it's the first epoch and file exists
         file_mode = (
             "w"
-            if epoch == 0 and os.path.exists(self.output_file) or rewrite is True
+            if epoch == 0 and os.path.exists(output_path_with_CV_fold) or rewrite is True
             else "a"
         )
 
         # Append the metrics for the current epoch to the CSV file
-        with open(self.output_file, file_mode, newline="") as csvfile:
+        with open(output_path_with_CV_fold, file_mode, newline="") as csvfile:
             csvwriter = csv.writer(csvfile)
 
             # Write header if it's the first epoch

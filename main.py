@@ -43,4 +43,4 @@ if __name__ == "__main__":
         experiment = dilatedCNNExperiment(
             X_train, y_train, X_validation, y_validation, X_test, y_test
         )
-        experiment.run_epochs()
+        experiment.run_epochs(k) # k starts at 0 and ends at epochs-1 – note: could do k+1 to start at 1 and end at epochs
