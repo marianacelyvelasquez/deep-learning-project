@@ -33,6 +33,7 @@ if __name__ == "__main__":
     stratifier = IterativeStratification(n_splits=10)
 
     for k, (train_indices, validation_indices) in enumerate(stratifier.split(X, y)):
+        print(f"Running fold {k+1}/10")
         X_train = X[train_indices]
         X_validation = X[validation_indices]
 
