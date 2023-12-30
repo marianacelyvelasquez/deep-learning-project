@@ -57,7 +57,7 @@ class dilatedCNNExperiment:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = 2
+        self.num_epochs = 10
 
         self.train_metrics_manager = MetricsManager(
             name="train",
