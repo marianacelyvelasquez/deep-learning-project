@@ -105,7 +105,7 @@ class MetricsManager:
     def update_loss(self, loss, epoch, batch_i):
         self.loss[epoch][batch_i] = loss.detach().cpu()
 
-    def compute_micro_averages(self, epoch): # TODO: adapt to k-fold CV ?
+    def compute_micro_averages(self, epoch):
         tp = np.sum(self.tp[epoch])
         fn = np.sum(self.fn[epoch])
         fp = np.sum(self.fp[epoch])
