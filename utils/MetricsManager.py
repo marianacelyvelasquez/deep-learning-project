@@ -68,6 +68,7 @@ class MetricsManager:
         self.g2_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
         self.ROCAUC_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
         self.AP_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.loss_micro: npt.NDArray[np.float_] = np.zeros(num_epochs) # TODO WHYYYY
 
     def update_confusion_matrix(self, y_trues, y_preds, epoch):
         """
@@ -121,6 +122,7 @@ class MetricsManager:
         )
         self.f2_micro[epoch] = self.compute_fbeta(tp, fp, fn, beta=2)
         self.g2_micro[epoch] = self.compute_jaccard(tp, fp, fn, beta=2)
+        self.loss_micro[epoch] = np.mean(self.loss[epoch])
 
     def compute_metrics(self, epoch):
         current_tp = self.tp[epoch]
@@ -211,6 +213,7 @@ class MetricsManager:
             "F2",
             "Jaccard",
             "AP",
+            "loss",
         ]
         num_classes = 24  # Assuming 24 classes
 
@@ -233,10 +236,12 @@ class MetricsManager:
                 self.f2[epoch, class_i],
                 self.g2[epoch, class_i],
                 self.AP[epoch, class_i],
+                self.loss[epoch, class_i], #loss_metric ? why class_i ??? isn't self.loss stored as of epoch and of batch?
             ]
             row = f"{(class_i + 1):>6} | " + " | ".join(
                 [f"{value:10.4f}" for value in metrics_values]
             )
+            print("\n\n About to print a row on class_i = {class_i} \n\n")
             print(row)
 
         print("\n")
@@ -253,6 +258,7 @@ class MetricsManager:
             "F2",
             "Jaccard",
             "AP (micro)",
+            "Loss",
         ]
 
         # Print the header
@@ -271,6 +277,7 @@ class MetricsManager:
             self.f2_micro[epoch],
             self.g2_micro[epoch],
             self.AP_micro[epoch],
+            self.loss_micro[epoch],
         ]
 
         row = "".join([f"{value:10.4f}" for value in metrics_values])
