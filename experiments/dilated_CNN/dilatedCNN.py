@@ -57,7 +57,7 @@ class dilatedCNNExperiment:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = 10
+        self.num_epochs = 8 #to differentiate from CV_k = 10
 
         self.train_metrics_manager = MetricsManager(
             name="train",
@@ -330,6 +330,7 @@ class dilatedCNNExperiment:
                     loss.backward()
                     self.optimizer.step()
 
+                    # Metrics are updated once per batch (batch size here by default is 128)
                     self.train_metrics_manager.update_confusion_matrix(
                         labels, predictions, epoch
                     )
@@ -440,5 +441,5 @@ class dilatedCNNExperiment:
             self.test_metrics_manager.report_micro_averages(last_epoch, CV_k, rewrite=True)
 
         print(
-            "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"
+            "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={CV_k}"
         )
