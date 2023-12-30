@@ -398,6 +398,8 @@ class dilatedCNNExperiment:
                 self.validation_metrics_manager.compute_micro_averages(epoch)
                 self.validation_metrics_manager.report_micro_averages(epoch, CV_k)
 
+        self.train_metrics_manager.plot_loss(CV_k)
+
         # TEST set evaluation
         self.model.eval()
         with tqdm(

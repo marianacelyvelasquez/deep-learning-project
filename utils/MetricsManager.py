@@ -306,11 +306,12 @@ class MetricsManager:
                 ]
             )
 
-    def plot_loss(self):
+    def plot_loss(self, CV_k):
         plt.figure(figsize=(10, 10)) #can change plot size
         plt.plot(np.mean(self.loss, axis=1), label='Training Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.title('Training Loss over Epochs')
         plt.legend()
-        plt.show()
+        plt.savefig(os.path.join(self.output_file, f"{CV_k}_fold_loss_plot.png"))
+        plt.close()
