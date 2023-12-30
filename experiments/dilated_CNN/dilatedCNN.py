@@ -290,7 +290,7 @@ class dilatedCNNExperiment:
 
         return loss_fn
 
-    def run_epochs(self):
+    def run_epochs(self, CV_k=0):
         for epoch in range(self.num_epochs):
             # Train
             self.model.train()
@@ -342,7 +342,7 @@ class dilatedCNNExperiment:
                     pbar.update()
 
                 self.train_metrics_manager.compute_micro_averages(epoch)
-                self.train_metrics_manager.report_micro_averages(epoch)
+                self.train_metrics_manager.report_micro_averages(epoch, CV_k)
 
                 checkpoint_dir = "models/dilated_CNN/checkpoints"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -396,7 +396,7 @@ class dilatedCNNExperiment:
                         # )
 
                 self.validation_metrics_manager.compute_micro_averages(epoch)
-                self.validation_metrics_manager.report_micro_averages(epoch)
+                self.validation_metrics_manager.report_micro_averages(epoch, CV_k)
 
         # TEST set evaluation
         self.model.eval()
@@ -435,7 +435,7 @@ class dilatedCNNExperiment:
                     # )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
-            self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)
+            self.test_metrics_manager.report_micro_averages(last_epoch, CV_k, rewrite=True)
 
         print(
             "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions"
