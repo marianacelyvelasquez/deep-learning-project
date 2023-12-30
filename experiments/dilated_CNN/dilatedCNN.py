@@ -441,5 +441,5 @@ class dilatedCNNExperiment:
             self.test_metrics_manager.report_micro_averages(last_epoch, CV_k, rewrite=True)
 
         print(
-            "Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={CV_k}"
+            f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={CV_k}"
         )
