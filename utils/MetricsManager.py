@@ -35,15 +35,26 @@ class MetricsManager:
         # For each class, we have a list of metrics for each epoch.
         # You can take the average over all classes for a given epoch
         # to get the "macro" average.
+
+        # Recall
         self.recall: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # True Negative Rate
         self.TNR: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # False Positive Rate
         self.FPR: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # Positive Predictive Value
         self.PPV: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # Negative Predictive Value
         self.NPV: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # F1 score
         self.f1: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # F2 score
         self.f2: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # G2 score
         self.g2: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # Receiver Operating Characteristic Area Under the Curve
         self.ROCAUC: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
+        # Average Precision
         self.AP: npt.NDArray[np.float_] = np.zeros((num_epochs, num_classes))
 
         # Micro averages
