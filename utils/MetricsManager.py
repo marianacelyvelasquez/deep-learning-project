@@ -2,6 +2,7 @@ import csv
 import os
 import numpy as np
 import numpy.typing as npt
+import matplotlib.pyplot as plt
 
 from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
 from experiments.dilated_CNN.config import Config
@@ -300,3 +301,12 @@ class MetricsManager:
                     for value in [epoch] + metrics_values
                 ]
             )
+
+    def plot_loss(self):
+        plt.figure(figsize=(10, 10)) #can change plot size
+        plt.plot(np.mean(self.loss, axis=1), label='Training Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training Loss over Epochs')
+        plt.legend()
+        plt.show()
