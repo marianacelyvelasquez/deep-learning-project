@@ -4,7 +4,7 @@ import sys
 import random
 
 
-def create_symlinks(source_dir, dest_dir, percentage=5):
+def create_symlinks(source_dir, dest_dir, percentage=2):
     if not os.path.exists(source_dir):
         print(f"Source directory {source_dir} does not exist.")
         return
@@ -27,7 +27,7 @@ def create_symlinks(source_dir, dest_dir, percentage=5):
         print("No non-hidden files to link.")
         return
 
-    selected_bases = random.sample(base_files, num_files_to_link)
+    selected_bases = random.sample(list(base_files), num_files_to_link)
 
     for base in selected_bases:
         for ext in [".hea", ".mat"]:
