@@ -351,8 +351,11 @@ class dilatedCNNExperiment:
                 self.train_metrics_manager.compute_micro_averages(epoch)
                 self.train_metrics_manager.report_micro_averages(epoch)
 
-                checkpoint_dir = "models/dilated_CNN/checkpoints"
-                os.makedirs(checkpoint_dir, exist_ok=True)
+                checkpoint_dir = os.path.join(
+                    "models/dilated_CNN/checkpoints", f"fold_{self.CV_k}"
+                )
+                if not os.path.exists(checkpoint_dir):
+                    os.makedirs(checkpoint_dir, exist_ok=True)
 
                 checkpoint_path = os.path.join(checkpoint_dir, f"epoch_{epoch + 1}.pt")
                 torch.save(self.model.state_dict(), checkpoint_path)
