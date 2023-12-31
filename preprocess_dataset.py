@@ -58,6 +58,9 @@ def get_record_paths_and_labels_binary_encoded_list(
 
     # Process each record and save to the appropriate directory
     for dirpath, dirnames, filenames in os.walk(absolute_path):
+        # Filtering out hidden files
+        filenames = [f for f in filenames if not f.startswith('.')]
+
         for filename in filenames:
             if filename.endswith(".hea"):
                 record_path = os.path.join(
