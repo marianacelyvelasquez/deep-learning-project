@@ -15,6 +15,7 @@ from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from torch.utils.data import DataLoader
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 from utils.MetricsManager import MetricsManager
+from dataloaders.cinc2020.common import labels_map
 
 
 class dilatedCNNExperiment:
@@ -57,7 +58,7 @@ class dilatedCNNExperiment:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = 8 #to differentiate from CV_k = 10
+        self.num_epochs = 8  # to differentiate from CV_k = 10
 
         self.train_metrics_manager = MetricsManager(
             name="train",
@@ -94,13 +95,12 @@ class dilatedCNNExperiment:
         y_preds = y_preds.cpu().detach().numpy()
         y_probs = y_probs.cpu().detach().numpy()
 
-        num_diagnoses = y_preds.shape[1]
-
         # Iterate over each sample
         for filename, y_pred, y_prob in zip(filenames, y_preds, y_probs):
             # Create a DataFrame for the current sampleo
-            header = [f"diagnosis_{j+1}" for j in range(num_diagnoses)]
-            df = pd.DataFrame(columns=header)
+
+            # header = [class_name for class_name in labels_map.values()]
+            df = pd.DataFrame(columns=labels_map)
             df.loc[0] = y_pred
             df.loc[1] = y_prob
 
@@ -385,7 +385,9 @@ class dilatedCNNExperiment:
                             labels, predictions, epoch
                         )
 
-                        self.save_prediction(filenames, labels, predictions)
+                        self.save_prediction(
+                            filenames, predictions, predictions_probabilities
+                        )
 
                         # TODO: Dont pass config, just use it inside the function.
                         # Do it for all save_label calls.
@@ -432,13 +434,17 @@ class dilatedCNNExperiment:
                         labels, predictions, last_epoch
                     )
 
-                    self.save_prediction(filenames, labels, predictions)
+                    self.save_prediction(
+                        filenames, predictions, predictions_probabilities
+                    )
                     # self.save_label(
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
                     # )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
-            self.test_metrics_manager.report_micro_averages(last_epoch, CV_k, rewrite=True)
+            self.test_metrics_manager.report_micro_averages(
+                last_epoch, CV_k, rewrite=True
+            )
 
         print(
             f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={CV_k}"

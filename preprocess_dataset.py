@@ -13,7 +13,6 @@ from dataloaders.cinc2020.common import labels_map
 # MARI RIC: Assume _flattened exists :)
 
 
-
 def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str, str]:
     processed_dir_training = Config.TRAIN_DATA_DIR
     processed_dir_training.mkdir(exist_ok=True)
@@ -21,7 +20,7 @@ def make_directories_for_processed_split_data(source_dir: str) -> tuple[str, str
     processed_dir_testing = Config.TEST_DATA_DIR
     processed_dir_testing.mkdir(exist_ok=True)
 
-    #Validation set will no longer be used
+    # Validation set will no longer be used
     processed_dir_validating = Config.TEST_DATA_DIR
     processed_dir_validating.mkdir(exist_ok=True)
 
@@ -205,8 +204,8 @@ if __name__ == "__main__":
         X = np.array(record_paths)
         y = np.array(labels_binary_encoded_list)
 
-        train_size = 0.8
-        test_size = 0.2
+        train_size = 0.1
+        test_size = 0.05
         sample_distribution_per_fold = [train_size, test_size]
 
         stratifier = IterativeStratification(
