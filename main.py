@@ -30,7 +30,7 @@ if __name__ == "__main__":
     X_test = np.array(record_paths_test)
     y_test = np.array(labels_test)
 
-    stratifier = IterativeStratification(n_splits=10)
+    stratifier = IterativeStratification(n_splits=Config.NUM_FOLDS)
 
     for k, (train_indices, validation_indices) in enumerate(stratifier.split(X, y)):
         print(f"Running fold {k+1}/10")
@@ -41,6 +41,7 @@ if __name__ == "__main__":
         y_validation = y[validation_indices]
 
         experiment = dilatedCNNExperiment(
-            X_train, y_train, X_validation, y_validation, X_test, y_test
+            X_train, y_train, X_validation, y_validation, X_test, y_test, k + 1
         )
-        experiment.run_epochs(k+1) # Having CV_k go from 1 to #epochs
+        experiment.run_epochs()
+        break

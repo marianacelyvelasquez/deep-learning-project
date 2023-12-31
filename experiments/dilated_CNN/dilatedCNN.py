@@ -19,7 +19,7 @@ from dataloaders.cinc2020.common import labels_map
 
 
 class dilatedCNNExperiment:
-    def __init__(self, X_train, y_train, X_val, y_val, X_test, y_test):
+    def __init__(self, X_train, y_train, X_val, y_val, X_test, y_test, CV_k):
         self.network_params = {
             "in_channels": 12,
             "channels": 108,
@@ -28,6 +28,8 @@ class dilatedCNNExperiment:
             "out_channels": 24,
             "kernel_size": 3,
         }
+
+        self.CV_k = CV_k
 
         self.device = self.get_device()
         self.model = self.load_model()
@@ -58,13 +60,14 @@ class dilatedCNNExperiment:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = 8  # to differentiate from CV_k = 10
+        self.num_epochs = Config.NUM_EPOCHS  # to differentiate from CV_k = 10
 
         self.train_metrics_manager = MetricsManager(
             name="train",
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.train_loader),
+            CV_k=self.CV_k,
         )
 
         self.validation_metrics_manager = MetricsManager(
@@ -72,6 +75,7 @@ class dilatedCNNExperiment:
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.validation_loader),
+            CV_k=self.CV_k,
         )
 
         self.test_metrics_manager = MetricsManager(
@@ -79,6 +83,7 @@ class dilatedCNNExperiment:
             num_epochs=self.num_epochs,
             num_classes=24,
             num_batches=len(self.test_loader),
+            CV_k=self.CV_k,
         )
 
     def save_prediction(
@@ -86,8 +91,9 @@ class dilatedCNNExperiment:
         filenames,
         y_preds,
         y_probs,
-        output_dir=os.path.join(Config.OUTPUT_DIR, Config.EXP_NAME, "predictions"),
     ):
+        output_dir = os.path.join(Config.OUTPUT_DIR, f"fold_{self.CV_k}", "predictions")
+
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -290,7 +296,7 @@ class dilatedCNNExperiment:
 
         return loss_fn
 
-    def run_epochs(self, CV_k=0):
+    def run_epochs(self):
         for epoch in range(self.num_epochs):
             # Train
             self.model.train()
@@ -343,7 +349,7 @@ class dilatedCNNExperiment:
                     pbar.update()
 
                 self.train_metrics_manager.compute_micro_averages(epoch)
-                self.train_metrics_manager.report_micro_averages(epoch, CV_k)
+                self.train_metrics_manager.report_micro_averages(epoch)
 
                 checkpoint_dir = "models/dilated_CNN/checkpoints"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -399,9 +405,9 @@ class dilatedCNNExperiment:
                         # )
 
                 self.validation_metrics_manager.compute_micro_averages(epoch)
-                self.validation_metrics_manager.report_micro_averages(epoch, CV_k)
+                self.validation_metrics_manager.report_micro_averages(epoch)
 
-        self.train_metrics_manager.plot_loss(CV_k)
+        self.train_metrics_manager.plot_loss()
 
         # TEST set evaluation
         self.model.eval()
@@ -442,10 +448,8 @@ class dilatedCNNExperiment:
                     # )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
-            self.test_metrics_manager.report_micro_averages(
-                last_epoch, CV_k, rewrite=True
-            )
+            self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)
 
         print(
-            f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={CV_k}"
+            f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={self.CV_k}"
         )

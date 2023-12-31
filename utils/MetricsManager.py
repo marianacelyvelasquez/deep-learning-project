@@ -9,7 +9,7 @@ from experiments.dilated_CNN.config import Config
 
 
 class MetricsManager:
-    def __init__(self, name, num_epochs, num_classes, num_batches):
+    def __init__(self, name, num_epochs, num_classes, num_batches, CV_k):
         # True Positives
         self.tp: npt.NDArray[np.int_] = np.zeros((num_epochs, num_classes))
         # False Negatives
@@ -21,7 +21,7 @@ class MetricsManager:
 
         self.loss: npt.NDArray[np.float_] = np.zeros((num_epochs, num_batches))
 
-        self.output_folder = os.path.join(Config.OUTPUT_DIR, "metrics")
+        self.output_folder = os.path.join(Config.OUTPUT_DIR, f"fold_{CV_k}", "metrics")
         self.output_filename = f"{name}_metrics.csv"
 
         if not os.path.exists(os.path.dirname(self.output_folder)):
@@ -68,7 +68,7 @@ class MetricsManager:
         self.g2_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
         self.ROCAUC_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
         self.AP_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
-        self.loss_micro: npt.NDArray[np.float_] = np.zeros(num_epochs) # TODO WHYYYY
+        self.loss_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)  # TODO WHYYYY
 
     def update_confusion_matrix(self, y_trues, y_preds, epoch):
         """
@@ -236,7 +236,9 @@ class MetricsManager:
                 self.f2[epoch, class_i],
                 self.g2[epoch, class_i],
                 self.AP[epoch, class_i],
-                self.loss[epoch, class_i], #loss_metric ? why class_i ??? isn't self.loss stored as of epoch and of batch?
+                self.loss[
+                    epoch, class_i
+                ],  # loss_metric ? why class_i ??? isn't self.loss stored as of epoch and of batch?
             ]
             row = f"{(class_i + 1):>6} | " + " | ".join(
                 [f"{value:10.4f}" for value in metrics_values]
@@ -246,7 +248,9 @@ class MetricsManager:
 
         print("\n")
 
-    def report_micro_averages(self, epoch, CV_k, rewrite=False): #k is the k-fold CV fold (starts at 0 ends at 9?)
+    def report_micro_averages(
+        self, epoch, rewrite=False
+    ):  # k is the k-fold CV fold (starts at 0 ends at 9?)
         # Define the metrics to report
         metrics = [
             "Recall",
@@ -285,14 +289,19 @@ class MetricsManager:
 
         print("\n")
         # Create a subfolder for each CV fold
-        output_path_with_CV_fold = os.path.join(self.output_folder, f"Fold {CV_k}", f"{self.output_filename}")
+        output_path_with_CV_fold = os.path.join(
+            self.output_folder, f"{self.output_filename}"
+        )
+
         if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
             os.makedirs(os.path.dirname(output_path_with_CV_fold))
 
         # Determine the file mode - overwrite if it's the first epoch and file exists
         file_mode = (
             "w"
-            if epoch == 0 and os.path.exists(output_path_with_CV_fold) or rewrite is True
+            if epoch == 0
+            and os.path.exists(output_path_with_CV_fold)
+            or rewrite is True
             else "a"
         )
 
@@ -312,12 +321,12 @@ class MetricsManager:
                 ]
             )
 
-    def plot_loss(self, CV_k):
-        plt.figure(figsize=(10, 10)) #can change plot size
-        plt.plot(np.mean(self.loss, axis=1), label='Training Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title('Training Loss over Epochs')
+    def plot_loss(self):
+        plt.figure(figsize=(10, 10))  # can change plot size
+        plt.plot(np.mean(self.loss, axis=1), label="Training Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training Loss over Epochs")
         plt.legend()
-        plt.savefig(os.path.join(self.output_folder, f"{CV_k}", f"fold_loss_plot.png"))
+        plt.savefig(os.path.join(self.output_folder, f"loss_plot.png"))
         plt.close()
