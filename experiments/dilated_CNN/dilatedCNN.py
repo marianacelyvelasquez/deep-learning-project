@@ -94,13 +94,10 @@ class dilatedCNNExperiment:
             CV_k=self.CV_k,
         )
 
-    def save_prediction(
-        self,
-        filenames,
-        y_preds,
-        y_probs,
-    ):
-        output_dir = os.path.join(Config.OUTPUT_DIR, f"fold_{self.CV_k}", "predictions")
+    def save_prediction(self, filenames, y_preds, y_probs, subdir):
+        output_dir = os.path.join(
+            Config.OUTPUT_DIR, f"fold_{self.CV_k}", "predictions", subdir
+        )
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -169,6 +166,10 @@ class dilatedCNNExperiment:
 
         if Config.LOAD_OPTIMIZER is False and checkpoint_path is True:
             print("Not loading optimizer state dict because LOAD_OPTIMIZER is False")
+            return optimizer
+
+        if Config.LOAD_OPTIMIZER is True and checkpoint_path is None:
+            print("Not loading optimizer state dict because checkpoint_path is None")
             return optimizer
 
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
@@ -360,7 +361,7 @@ class dilatedCNNExperiment:
                     self.predictions.extend(predictions.cpu().detach().tolist())
 
                     self.save_prediction(
-                        filenames, predictions, predictions_probabilities
+                        filenames, predictions, predictions_probabilities, "train"
                     )
                     # self.save_label(
                     #     filenames,
@@ -418,7 +419,7 @@ class dilatedCNNExperiment:
                 desc=f"Evaluate validation on dilated CNN. Epoch {epoch +1}",
                 total=len(self.validation_loader),
             ) as pbar:
-                # Train
+                # Validation
                 with torch.no_grad():
                     # Reset predictions
                     self.predictions = []
@@ -450,7 +451,10 @@ class dilatedCNNExperiment:
                         )
 
                         self.save_prediction(
-                            filenames, predictions, predictions_probabilities
+                            filenames,
+                            predictions,
+                            predictions_probabilities,
+                            "validation",
                         )
 
                         # TODO: Dont pass config, just use it inside the function.
@@ -507,7 +511,7 @@ class dilatedCNNExperiment:
                     )
 
                     self.save_prediction(
-                        filenames, predictions, predictions_probabilities
+                        filenames, predictions, predictions_probabilities, "test"
                     )
                     # self.save_label(
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
