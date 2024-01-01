@@ -4,6 +4,7 @@ import shutil
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
+import numpy.typing as npt
 import torch
 
 from utils.loss import BinaryFocalLoss
@@ -19,7 +20,9 @@ from dataloaders.cinc2020.common import labels_map
 
 
 class dilatedCNNExperiment:
-    def __init__(self, X_train, y_train, X_val, y_val, X_test, y_test, CV_k):
+    def __init__(
+        self, X_train, y_train, X_val, y_val, X_test, y_test, CV_k, checkpoint_path=None
+    ):
         self.network_params = {
             "in_channels": 12,
             "channels": 108,
@@ -32,7 +35,6 @@ class dilatedCNNExperiment:
         self.CV_k = CV_k
 
         self.device = self.get_device()
-        self.model = self.load_model()
 
         # TODO: Currently we have one PyTorch Dataset in which we read all the d ata
         # and then we split it. Change it to first read all the data, then split it using
@@ -57,15 +59,21 @@ class dilatedCNNExperiment:
             self.validation_dataset, batch_size=128, shuffle=False
         )
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        self.model = self.load_model(checkpoint_path)
+
+        self.optimizer = self.load_optimizer(checkpoint_path)
         self.loss_fn = self.setup_loss_fn()
 
         self.num_epochs = Config.NUM_EPOCHS  # to differentiate from CV_k = 10
 
+        self.num_classes = 24
+
+        self.predictions = []
+
         self.train_metrics_manager = MetricsManager(
             name="train",
             num_epochs=self.num_epochs,
-            num_classes=24,
+            num_classes=self.num_classes,
             num_batches=len(self.train_loader),
             CV_k=self.CV_k,
         )
@@ -73,7 +81,7 @@ class dilatedCNNExperiment:
         self.validation_metrics_manager = MetricsManager(
             name="validation",
             num_epochs=self.num_epochs,
-            num_classes=24,
+            num_classes=self.num_classes,
             num_batches=len(self.validation_loader),
             CV_k=self.CV_k,
         )
@@ -81,7 +89,7 @@ class dilatedCNNExperiment:
         self.test_metrics_manager = MetricsManager(
             name="test",
             num_epochs=self.num_epochs,
-            num_classes=24,
+            num_classes=self.num_classes,
             num_batches=len(self.test_loader),
             CV_k=self.CV_k,
         )
@@ -153,19 +161,40 @@ class dilatedCNNExperiment:
 
         return device
 
-    def load_model(self):
+    def load_optimizer(self, checkpoint_path):
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+
+        if Config.LOAD_OPTIMIZER is False and checkpoint_path is None:
+            return optimizer
+
+        if Config.LOAD_OPTIMIZER is False and checkpoint_path is True:
+            print("Not loading optimizer state dict because LOAD_OPTIMIZER is False")
+            return optimizer
+
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+
+        print(f"Loading optimizer state dict from {checkpoint_path}")
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+        return optimizer
+
+    def load_model(self, checkpoint_path=None):
         model = CausalCNNEncoderOld(**self.network_params)
         model = model.to(self.device)
 
         # Load pretrained model weights
         # TODO: Somehow doesn't properly work yet.
         freeze_modules = ["network\.0\.network\.[01234].*"]
-        print("Freezing modules:", freeze_modules)
         exclude_modules = None
 
         # Load pretrained dilated CNN
-        pretrained_cnn_weights = "models/dilated_CNN/pretrained_weights.pt"
-        checkpoint = torch.load(pretrained_cnn_weights, map_location=self.device)
+        if checkpoint_path is None:
+            pretrained_cnn_weights = "models/dilated_CNN/pretrained_weights.pt"
+            checkpoint_path = pretrained_cnn_weights
+
+        print(f"Loading pretrained dilated CNN from {checkpoint_path}")
+
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
         checkpoint_dict = checkpoint["model_state_dict"]
         model_state_dict = model.state_dict()
 
@@ -190,6 +219,8 @@ class dilatedCNNExperiment:
         # provided
         if not freeze_modules:
             return model
+
+        print("Freezing modules:", freeze_modules)
         for k, param in model.named_parameters():
             if any(re.compile(p).match(k) for p in freeze_modules):
                 param.requires_grad = False
@@ -306,6 +337,9 @@ class dilatedCNNExperiment:
                 desc=f"Training dilated CNN. Epoch {epoch +1}/{self.num_epochs}",
                 total=len(self.train_loader),
             ) as pbar:
+                # Reset predictions
+                self.predictions = []
+
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                     self.optimizer.zero_grad()
 
@@ -322,6 +356,8 @@ class dilatedCNNExperiment:
                     # Convert logits to probabilities and round to get predictions
                     predictions_probabilities = torch.sigmoid(predictions_logits)
                     predictions = torch.round(predictions_probabilities)
+
+                    self.predictions.extend(predictions.cpu().detach().tolist())
 
                     self.save_prediction(
                         filenames, predictions, predictions_probabilities
@@ -349,6 +385,9 @@ class dilatedCNNExperiment:
                     pbar.update()
 
                 self.train_metrics_manager.compute_micro_averages(epoch)
+                self.train_metrics_manager.compute_challenge_metric(
+                    self.predictions, self.train_dataset.y, epoch
+                )
                 self.train_metrics_manager.report_micro_averages(epoch)
 
                 checkpoint_dir = os.path.join(
@@ -358,7 +397,18 @@ class dilatedCNNExperiment:
                     os.makedirs(checkpoint_dir, exist_ok=True)
 
                 checkpoint_path = os.path.join(checkpoint_dir, f"epoch_{epoch + 1}.pt")
-                torch.save(self.model.state_dict(), checkpoint_path)
+
+                # Save checkpoint
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "model_state_dict": self.model.state_dict(),
+                        "optimizer_state_dict": self.optimizer.state_dict(),
+                        "network_name": "dialted_CNN",
+                        "network_params": self.network_params,
+                    },
+                    checkpoint_path,
+                )
 
             # Validation evaluation
             self.model.eval()
@@ -370,6 +420,9 @@ class dilatedCNNExperiment:
             ) as pbar:
                 # Train
                 with torch.no_grad():
+                    # Reset predictions
+                    self.predictions = []
+
                     for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                         # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                         # So we have to convert it using .float()
@@ -386,6 +439,8 @@ class dilatedCNNExperiment:
                         # Convert logits to probabilities and round to get predictions
                         predictions_probabilities = torch.sigmoid(predictions_logits)
                         predictions = torch.round(predictions_probabilities)
+
+                        self.predictions.extend(predictions.cpu().detach().tolist())
 
                         self.validation_metrics_manager.update_loss(
                             loss, epoch, batch_i
@@ -408,6 +463,9 @@ class dilatedCNNExperiment:
                         # )
 
                 self.validation_metrics_manager.compute_micro_averages(epoch)
+                self.validation_metrics_manager.compute_challenge_metric(
+                    self.predictions, self.validation_dataset.y, epoch
+                )
                 self.validation_metrics_manager.report_micro_averages(epoch)
 
         self.train_metrics_manager.plot_loss()
@@ -421,6 +479,9 @@ class dilatedCNNExperiment:
         ) as pbar:
             # Test
             with torch.no_grad():
+                # Reset predictions
+                self.predictions = []
+
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                     last_epoch = self.num_epochs - 1
 
@@ -438,6 +499,8 @@ class dilatedCNNExperiment:
                     predictions_probabilities = torch.sigmoid(predictions_logits)
                     predictions = torch.round(predictions_probabilities)
 
+                    self.predictions.extend(predictions.cpu().detach().tolist())
+
                     self.test_metrics_manager.update_loss(loss, last_epoch, batch_i)
                     self.test_metrics_manager.update_confusion_matrix(
                         labels, predictions, last_epoch
@@ -451,6 +514,9 @@ class dilatedCNNExperiment:
                     # )
 
             self.test_metrics_manager.compute_micro_averages(last_epoch)
+            self.test_metrics_manager.compute_challenge_metric(
+                self.predictions, self.test_dataset.y, epoch
+            )
             self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)
 
         print(

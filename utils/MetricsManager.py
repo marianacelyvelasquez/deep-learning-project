@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
 from experiments.dilated_CNN.config import Config
 
+from utils.evaluate_12ECG_score import load_weights, compute_challenge_metric
+
+from dataloaders.cinc2020.common import labels_map
+from common.common import eq_classes
+
 
 class MetricsManager:
     def __init__(self, name, num_epochs, num_classes, num_batches, CV_k):
@@ -28,9 +33,8 @@ class MetricsManager:
             os.makedirs(os.path.dirname(self.output_folder))
 
         # TODO: Implement
-        self.challenge_metric: npt.NDArray[np.float_] = np.zeros(
-            (num_epochs, num_classes)
-        )
+        # Challenge score
+        self.challenge_metric: npt.NDArray[np.float_] = np.zeros(num_epochs)
 
         # For each class, we have a list of metrics for each epoch.
         # You can take the average over all classes for a given epoch
@@ -123,6 +127,22 @@ class MetricsManager:
         self.f2_micro[epoch] = self.compute_fbeta(tp, fp, fn, beta=2)
         self.g2_micro[epoch] = self.compute_jaccard(tp, fp, fn, beta=2)
         self.loss_micro[epoch] = np.mean(self.loss[epoch])
+
+    #  TODO: We work with 24 clases,A has 27. or i think 27 are used in the paper code???
+    def compute_challenge_metric(self, y_true, y_pred, epoch):
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        classes = [str(class_) for class_ in labels_map]
+        weights_file = "utils/reward_matrix_weights.csv"
+        weights = load_weights(weights_file, classes)
+
+        normal_class = "426783006"
+
+        challenge_score = compute_challenge_metric(
+            weights, y_true, y_pred, list(classes), normal_class
+        )
+
+        self.challenge_metric[epoch] = challenge_score
 
     def compute_metrics(self, epoch):
         current_tp = self.tp[epoch]
@@ -262,6 +282,7 @@ class MetricsManager:
             "F2",
             "Jaccard",
             "AP (micro)",
+            "Challenge",
             "Loss",
         ]
 
@@ -281,6 +302,7 @@ class MetricsManager:
             self.f2_micro[epoch],
             self.g2_micro[epoch],
             self.AP_micro[epoch],
+            self.challenge_metric[epoch],
             self.loss_micro[epoch],
         ]
 

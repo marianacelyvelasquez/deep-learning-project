@@ -630,8 +630,6 @@ def compute_modified_confusion_matrix(labels, outputs):
 
 
 # Compute the evaluation metric for the Challenge.
-
-
 def compute_challenge_metric(weights, labels, outputs, classes, normal_class):
     num_recordings, num_classes = np.shape(labels)
     normal_index = classes.index(normal_class)
