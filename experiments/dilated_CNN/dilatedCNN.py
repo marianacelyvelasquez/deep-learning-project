@@ -127,8 +127,13 @@ class dilatedCNNExperiment:
         output_dir (str): Base directory where the files will be moved.
         subdir (str): Subdirectory within output_dir where files will be moved.
         """
+        # Get the absolute path of the current directory
+        current_dir = os.getcwd()
+
         # Ensure the output directory and subdirectory exist
-        output_dir = os.path.join(Config.OUTPUT_DIR, f"fold_{self.CV_k}", "train_data")
+        output_dir = os.path.join(
+            current_dir, Config.OUTPUT_DIR, f"fold_{self.CV_k}", "train_data"
+        )
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -136,8 +141,8 @@ class dilatedCNNExperiment:
         # Move each file
         for filename in filenames:
             # Construct the full file paths
-            original_path = os.path.join(Config.TRAIN_DATA_DIR, filename)
-            target_path = os.path.join(output_dir, filename)
+            original_path = os.path.join(current_dir, Config.TRAIN_DATA_DIR, filename)
+            target_path = os.path.join(current_dir, output_dir, filename)
 
             # Move the file
             os.symlink(original_path + ".hea", target_path + ".hea")
