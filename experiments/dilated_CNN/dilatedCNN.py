@@ -1,6 +1,5 @@
 import re
 import os
-import shutil
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
@@ -118,7 +117,7 @@ class dilatedCNNExperiment:
             # Save the DataFrame to a CSV file
             df.to_csv(os.path.join(output_dir, f"{filename}.csv"), index=False)
 
-    def save_label(self, filenames, data_dir, output_dir, subdir):
+    def save_label(self, filenames):
         """
         Moves files from data_dir to a subdir in output_dir.
 
@@ -129,18 +128,20 @@ class dilatedCNNExperiment:
         subdir (str): Subdirectory within output_dir where files will be moved.
         """
         # Ensure the output directory and subdirectory exist
-        final_output_dir = os.path.join(output_dir, subdir)
-        if not os.path.exists(final_output_dir):
-            os.makedirs(final_output_dir)
+        output_dir = os.path.join(Config.OUTPUT_DIR, f"fold_{self.CV_k}", "train_data")
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
         # Move each file
         for filename in filenames:
             # Construct the full file paths
-            original_path = os.path.join(data_dir, filename + ".hea")
-            new_path = os.path.join(final_output_dir, filename + ".hea")
+            original_path = os.path.join(Config.TRAIN_DATA_DIR, filename)
+            target_path = os.path.join(output_dir, filename)
 
             # Move the file
-            shutil.copy(original_path, new_path)
+            os.symlink(original_path + ".hea", target_path + ".hea")
+            os.symlink(original_path + ".mat", target_path + ".mat")
 
     def get_device(self):
         # Check if CUDA is available
@@ -329,6 +330,17 @@ class dilatedCNNExperiment:
         return loss_fn
 
     def run_epochs(self):
+        print("Storing training labels in output folder for later evlauation.")
+        for batch_i, (filenames, waveforms, labels) in enumerate(self.train_loader):
+            # We save a symlink of the training set to the output dir.
+            # We do that because the evaluation script expects to find
+            # for every file in the input directory a corresponding
+            # prediction file. Isusue is: We do CV, so the training set
+            # we get here is a subset of the one in the data dir.
+            # So we have to record it somehow.
+
+            self.save_label(filenames)
+
         for epoch in range(self.num_epochs):
             # Train
             self.model.train()
@@ -363,12 +375,6 @@ class dilatedCNNExperiment:
                     self.save_prediction(
                         filenames, predictions, predictions_probabilities, "train"
                     )
-                    # self.save_label(
-                    #     filenames,
-                    #     Config.DATA_DIR,
-                    #     Config.OUTPUT_DIR,
-                    #     "training",
-                    # )
 
                     loss.backward()
                     self.optimizer.step()
@@ -450,12 +456,12 @@ class dilatedCNNExperiment:
                             labels, predictions, epoch
                         )
 
-                        self.save_prediction(
-                            filenames,
-                            predictions,
-                            predictions_probabilities,
-                            "validation",
-                        )
+                        # self.save_prediction(
+                        #     filenames,
+                        #     predictions,
+                        #     predictions_probabilities,
+                        #     "validation",
+                        # )
 
                         # TODO: Dont pass config, just use it inside the function.
                         # Do it for all save_label calls.
