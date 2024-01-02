@@ -208,6 +208,8 @@ class dilatedCNNExperiment:
         checkpoint_dict = checkpoint["model_state_dict"]
         model_state_dict = model.state_dict()
 
+        self.epoch = checkpoint["epoch"]
+
         # filter out unnecessary keys
         # TODO: No sure what this is for i.e. why we just exlucde modules?
         # Was this simply for experimentation?
@@ -350,6 +352,8 @@ class dilatedCNNExperiment:
             self.save_label(filenames)
 
         for epoch in range(self.num_epochs):
+            self.epoch = epoch
+
             # Train
             self.model.train()
 
@@ -492,7 +496,7 @@ class dilatedCNNExperiment:
 
         self.evaluate_test_set(epoch)
 
-    def evaluate_test_set(self, epoch):
+    def evaluate_test_set(self):
         # TEST set evaluation
         self.model.eval()
         with tqdm(
@@ -506,7 +510,7 @@ class dilatedCNNExperiment:
                 self.predictions = []
 
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
-                    last_epoch = self.num_epochs - 1
+                    # last_epoch = self.num_epochs - 1
 
                     # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                     # So we have to convert it using .float()
@@ -524,9 +528,11 @@ class dilatedCNNExperiment:
 
                     self.predictions.extend(predictions.cpu().detach().tolist())
 
-                    self.test_metrics_manager.update_loss(loss, last_epoch, batch_i)
+                    self.test_metrics_manager.update_loss(
+                        loss, epoch=0, batch_i=batch_i
+                    )
                     self.test_metrics_manager.update_confusion_matrix(
-                        labels, predictions, last_epoch
+                        labels, predictions, epoch=0
                     )
 
                     self.save_prediction(
@@ -536,11 +542,11 @@ class dilatedCNNExperiment:
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
                     # )
 
-            self.test_metrics_manager.compute_micro_averages(last_epoch)
+            self.test_metrics_manager.compute_micro_averages(epoch=0)
             self.test_metrics_manager.compute_challenge_metric(
-                self.predictions, self.test_dataset.y, epoch
+                self.predictions, self.test_dataset.y, epoch=0
             )
-            self.test_metrics_manager.report_micro_averages(last_epoch, rewrite=True)
+            self.test_metrics_manager.report_micro_averages(epoch=0, rewrite=True)
 
         print(
             f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={self.CV_k}"

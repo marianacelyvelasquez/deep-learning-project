@@ -60,7 +60,7 @@ if __name__ == "__main__":
             # TODO: We don't really need epoch for test evaluation no?
             # TODO: Actually we load validation and test and do the stratification and all.
             # In fact we don't need those.
-            experiment.evaluate_test_set(1)
+            experiment.evaluate_test_set()
             break
         else:
             print("Running epochs.")
