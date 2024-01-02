@@ -164,6 +164,33 @@ class MetricsManager:
 
         print("Updated all metrics for the current epoch.")
 
+    def check_early_stopping(self) -> int:
+        """
+        Calculates the difference between the number of non-zero items in the array
+        and the index of the maximum value in the challenge_metric array.
+
+        Returns:
+        int: The calculated difference.
+        """
+        # Find the index of the maximum value
+        max_index = np.argmax(self.challenge_metric)
+
+        # Count the number of non-zero items in the array
+        non_zero_count = np.count_nonzero(self.challenge_metric)
+
+        # Run at least MIN_NUM_EPOCHS epochs. No need to check for early stopping
+        # before we didn't also do another EARLY_STOPPING_EPOCHS epochs.
+        if non_zero_count < Config.MIN_NUM_EPOCHS + Config.EARLY_STOPPING_EPOCHS:
+            return False
+
+        # Calculate the difference
+        difference = non_zero_count - max_index
+
+        if difference >= Config.EARLY_STOPPING_EPOCHS:
+            return True
+
+        return False
+
     @staticmethod
     def compute_recall(tp, fn):
         # Calculate recall for each class
@@ -306,7 +333,17 @@ class MetricsManager:
             self.loss_micro[epoch],
         ]
 
-        row = "".join([f"{value:10.4f}" for value in metrics_values])
+        # Function to format values, bold for challenge metric and loss
+        def format_value(value, index):
+            if (
+                index == 9 or index == 10
+            ):  # Assuming 'Challenge' is at index 9 and 'Loss' at index 10
+                return f"\033[1m{value:10.4f}\033[0m"
+            return f"{value:10.4f}"
+
+        row = "".join(
+            [format_value(value, idx) for idx, value in enumerate(metrics_values)]
+        )
         print(row)
 
         print("\n")

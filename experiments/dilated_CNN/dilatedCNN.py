@@ -20,7 +20,15 @@ from dataloaders.cinc2020.common import labels_map
 
 class dilatedCNNExperiment:
     def __init__(
-        self, X_train, y_train, X_val, y_val, X_test, y_test, CV_k, checkpoint_path=None
+        self,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        X_test,
+        y_test,
+        CV_k,
+        checkpoint_path=None,
     ):
         self.network_params = {
             "in_channels": 12,
@@ -70,7 +78,8 @@ class dilatedCNNExperiment:
         self.optimizer = self.load_optimizer()
         self.loss_fn = self.setup_loss_fn()
 
-        self.num_epochs = Config.NUM_EPOCHS  # to differentiate from CV_k = 10
+        self.min_num_epochs = Config.MIN_NUM_EPOCHS
+        self.max_num_epochs = Config.MAX_NUM_EPOCHS
         self.epoch = None
 
         self.num_classes = 24
@@ -79,7 +88,7 @@ class dilatedCNNExperiment:
 
         self.train_metrics_manager = MetricsManager(
             name="train",
-            num_epochs=self.num_epochs,
+            num_epochs=self.max_num_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.train_loader),
             CV_k=self.CV_k,
@@ -87,7 +96,7 @@ class dilatedCNNExperiment:
 
         self.validation_metrics_manager = MetricsManager(
             name="validation",
-            num_epochs=self.num_epochs,
+            num_epochs=self.max_num_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.validation_loader),
             CV_k=self.CV_k,
@@ -95,7 +104,7 @@ class dilatedCNNExperiment:
 
         self.test_metrics_manager = MetricsManager(
             name="test",
-            num_epochs=self.num_epochs,
+            num_epochs=self.max_num_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.test_loader),
             CV_k=self.CV_k,
@@ -351,7 +360,7 @@ class dilatedCNNExperiment:
 
             self.save_label(filenames)
 
-        for epoch in range(self.num_epochs):
+        for epoch in range(self.max_num_epochs):
             self.epoch = epoch
 
             # Train
@@ -359,7 +368,7 @@ class dilatedCNNExperiment:
 
             with tqdm(
                 self.train_loader,
-                desc=f"\033[32mTraining dilated CNN. Epoch {epoch +1}/{self.num_epochs}\033[0m",
+                desc=f"\033[32mTraining dilated CNN. Epoch {epoch +1}/{self.max_num_epochs}\033[0m",
                 total=len(self.train_loader),
             ) as pbar:
                 # Reset predictions
@@ -492,9 +501,14 @@ class dilatedCNNExperiment:
                 )
                 self.validation_metrics_manager.report_micro_averages(epoch)
 
+            stop_early = self.validation_metrics_manager.check_early_stopping()
+            if stop_early is True:
+                print("\033[91mstopping early\033[0m")
+                break
+
         self.train_metrics_manager.plot_loss()
 
-        self.evaluate_test_set(epoch)
+        self.evaluate_test_set()
 
     def evaluate_test_set(self):
         # TEST set evaluation
