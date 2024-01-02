@@ -1,5 +1,6 @@
 import warnings
 import sys
+import os
 import numpy as np
 from skmultilearn.model_selection import IterativeStratification
 
@@ -17,6 +18,12 @@ warnings.filterwarnings(
 
 if __name__ == "__main__":
     print("Running dialted_CNN experiment.")
+
+    if os.path.isdir(Config.OUTPUT_DIR):
+        print(
+            "\033[91mOutput directory already exists. Either remove it or change it in the config file. Exiting.\033[0m"
+        )
+        quit()
 
     record_paths_train, labels_train = get_record_paths_and_labels_binary_encoded_list(
         Config.TRAIN_DATA_DIR
