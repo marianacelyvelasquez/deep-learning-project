@@ -35,7 +35,6 @@ def evaluate_12ECG_score(label_directory, output_directory):
     # Find the label and output files.
     print("Finding label and output files...")
     label_files, output_files = find_challenge_files(label_directory, output_directory)
-
     # Load the labels and outputs.
     print("Loading labels and outputs...")
     label_classes, labels = load_labels(label_files, normal_class, equivalent_classes)
@@ -115,6 +114,7 @@ def is_number(x):
 def find_challenge_files(label_directory, output_directory):
     label_files = list()
     output_files = list()
+
     for f in sorted(os.listdir(label_directory)):
         F = os.path.join(label_directory, f)  # Full path for label file
         if (
@@ -234,7 +234,11 @@ def load_outputs(output_files, normal_class, equivalent_classes_collection):
                     elif j == 1:
                         row = list()
                         for arr in arrs:
-                            number = 1 if arr in ("1", "True", "true", "T", "t") else 0
+                            number = (
+                                1
+                                if arr in ("1", "1.0", "True", "true", "T", "t")
+                                else 0
+                            )
                             row.append(number)
                         tmp_binary_outputs.append(row)
                     elif j == 2:
