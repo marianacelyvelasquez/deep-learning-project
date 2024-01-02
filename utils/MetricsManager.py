@@ -178,9 +178,8 @@ class MetricsManager:
         # Count the number of non-zero items in the array
         non_zero_count = np.count_nonzero(self.challenge_metric)
 
-        # Run at least MIN_NUM_EPOCHS epochs. No need to check for early stopping
-        # before we didn't also do another EARLY_STOPPING_EPOCHS epochs.
-        if non_zero_count < Config.MIN_NUM_EPOCHS + Config.EARLY_STOPPING_EPOCHS:
+        # Run at least MIN_NUM_EPOCHS epochs.
+        if non_zero_count < Config.MIN_NUM_EPOCHS:
             return False
 
         # Calculate the difference
