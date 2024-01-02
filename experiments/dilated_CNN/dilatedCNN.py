@@ -31,6 +31,13 @@ class dilatedCNNExperiment:
             "kernel_size": 3,
         }
 
+        # Load pretrained dilated CNN
+        if checkpoint_path is None:
+            pretrained_cnn_weights = "models/dilated_CNN/pretrained_weights.pt"
+            self.checkpoint_path = pretrained_cnn_weights
+        else:
+            self.checkpoint_path = checkpoint_path
+
         self.CV_k = CV_k
 
         self.device = self.get_device()
@@ -58,12 +65,13 @@ class dilatedCNNExperiment:
             self.validation_dataset, batch_size=128, shuffle=False
         )
 
-        self.model = self.load_model(checkpoint_path)
+        self.model = self.load_model()
 
-        self.optimizer = self.load_optimizer(checkpoint_path)
+        self.optimizer = self.load_optimizer()
         self.loss_fn = self.setup_loss_fn()
 
         self.num_epochs = Config.NUM_EPOCHS  # to differentiate from CV_k = 10
+        self.epoch = None
 
         self.num_classes = 24
 
@@ -164,28 +172,28 @@ class dilatedCNNExperiment:
 
         return device
 
-    def load_optimizer(self, checkpoint_path):
+    def load_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
 
-        if Config.LOAD_OPTIMIZER is False and checkpoint_path is None:
+        if Config.LOAD_OPTIMIZER is False and self.checkpoint_path is None:
             return optimizer
 
-        if Config.LOAD_OPTIMIZER is False and checkpoint_path is True:
+        if Config.LOAD_OPTIMIZER is False and self.checkpoint_path is True:
             print("Not loading optimizer state dict because LOAD_OPTIMIZER is False")
             return optimizer
 
-        if Config.LOAD_OPTIMIZER is True and checkpoint_path is None:
+        if Config.LOAD_OPTIMIZER is True and self.checkpoint_path is None:
             print("Not loading optimizer state dict because checkpoint_path is None")
             return optimizer
 
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
 
-        print(f"Loading optimizer state dict from {checkpoint_path}")
+        print(f"Loading optimizer state dict from {self.checkpoint_path}")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         return optimizer
 
-    def load_model(self, checkpoint_path=None):
+    def load_model(self):
         model = CausalCNNEncoderOld(**self.network_params)
         model = model.to(self.device)
 
@@ -194,14 +202,9 @@ class dilatedCNNExperiment:
         freeze_modules = ["network\.0\.network\.[01234].*"]
         exclude_modules = None
 
-        # Load pretrained dilated CNN
-        if checkpoint_path is None:
-            pretrained_cnn_weights = "models/dilated_CNN/pretrained_weights.pt"
-            checkpoint_path = pretrained_cnn_weights
+        print(f"Loading pretrained dilated CNN from {self.checkpoint_path}")
 
-        print(f"Loading pretrained dilated CNN from {checkpoint_path}")
-
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
         checkpoint_dict = checkpoint["model_state_dict"]
         model_state_dict = model.state_dict()
 
@@ -408,7 +411,9 @@ class dilatedCNNExperiment:
                 if not os.path.exists(checkpoint_dir):
                     os.makedirs(checkpoint_dir, exist_ok=True)
 
-                checkpoint_path = os.path.join(checkpoint_dir, f"epoch_{epoch + 1}.pt")
+                checkpoint_file_path = os.path.join(
+                    checkpoint_dir, f"epoch_{epoch + 1}.pt"
+                )
 
                 # Save checkpoint
                 torch.save(
@@ -419,7 +424,7 @@ class dilatedCNNExperiment:
                         "network_name": "dialted_CNN",
                         "network_params": self.network_params,
                     },
-                    checkpoint_path,
+                    checkpoint_file_path,
                 )
 
             # Validation evaluation
@@ -485,6 +490,9 @@ class dilatedCNNExperiment:
 
         self.train_metrics_manager.plot_loss()
 
+        self.evaluate_test_set(epoch)
+
+    def evaluate_test_set(self, epoch):
         # TEST set evaluation
         self.model.eval()
         with tqdm(

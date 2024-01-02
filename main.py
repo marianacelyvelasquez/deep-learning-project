@@ -54,4 +54,12 @@ if __name__ == "__main__":
             k + 1,
             checkpoint_path,
         )
-        experiment.run_epochs()  # Having CV_k go from 1 to #epochs
+
+        if Config.ONLY_EVAL_TEST_SET:
+            print("Only evaluating test set.")
+            # TODO: We don't really need epoch for test evaluation no?
+            experiment.evaluate_test_set(1)
+        else:
+            print("Running epochs.")
+            experiment.run_epochs()  # Having CV_k go from 1 to #epochs
+            break
