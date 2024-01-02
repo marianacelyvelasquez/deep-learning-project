@@ -355,7 +355,7 @@ class dilatedCNNExperiment:
 
             with tqdm(
                 self.train_loader,
-                desc=f"Training dilated CNN. Epoch {epoch +1}/{self.num_epochs}",
+                desc=f"\033[32mTraining dilated CNN. Epoch {epoch +1}/{self.num_epochs}\033[0m",
                 total=len(self.train_loader),
             ) as pbar:
                 # Reset predictions
@@ -432,7 +432,7 @@ class dilatedCNNExperiment:
 
             with tqdm(
                 self.validation_loader,
-                desc=f"Evaluate validation on dilated CNN. Epoch {epoch +1}",
+                desc=f"\033[34mEvaluate validation on dilated CNN. Epoch {epoch +1}\033[0m",
                 total=len(self.validation_loader),
             ) as pbar:
                 # Validation
@@ -497,7 +497,7 @@ class dilatedCNNExperiment:
         self.model.eval()
         with tqdm(
             self.test_loader,
-            desc="Evaluate test data on dilated CNN.",
+            desc="\033[33mEvaluate test data on dilated CNN.\033[0m",
             total=len(self.test_loader),
         ) as pbar:
             # Test
