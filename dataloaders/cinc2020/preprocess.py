@@ -4,11 +4,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import scipy.io
+from scipy import misc, interpolate
 import wfdb
 import wfdb.processing
 import wfdb.io.convert
 from common.common import eq_classes
-from dataloaders.cinc2020.common import labels_map  
+from dataloaders.cinc2020.common import labels_map
 
 
 class Processor:
@@ -51,7 +52,7 @@ class Processor:
         # If no suitable segment is found, return the initial N elements
         return ecg_signal[:N]
 
-    def process_records(self, record_paths, output_dir):
+    def process_records(self, record_paths, output_dir, their=False):
         # Read a ECG measurement (record) from the CINC2020 dataset.
         # It read the .mat and .hea file and creates a record object out of it.
         # Note: We do not have an Annotations object. Annotation objects can be used
@@ -87,7 +88,20 @@ class Processor:
 
                 # Resample to target frequency if necessary
                 if fs != fs_target:
-                    x_tmp, _ = wfdb.processing.resample_sig(x_tmp, fs, fs_target)
+                    if their is not True:
+                        x_tmp, _ = wfdb.processing.resample_sig(x_tmp, fs, fs_target)
+                    else:
+                        length = len(x_tmp)
+                        x = np.linspace(0, length / fs, num=length)
+                        f = interpolate.interp1d(x, x_tmp, axis=0)
+                        xnew = np.linspace(
+                            0,
+                            length / fs,
+                            num=int((length / fs) * 500),
+                        )
+                        x_tmp = f(
+                            xnew
+                        )  # use interpolation function returned by `interp1d`
 
                 # Fix to given duration if necessary
                 if len(x_tmp) > N:
