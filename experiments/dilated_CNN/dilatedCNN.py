@@ -30,6 +30,8 @@ class dilatedCNNExperiment:
         CV_k,
         checkpoint_path=None,
     ):
+        torch.manual_seed(42)
+
         self.network_params = {
             "in_channels": 12,
             "channels": 108,
@@ -65,12 +67,10 @@ class dilatedCNNExperiment:
         self.test_dataset = Cinc2020Dataset(X_test, y_test)
         self.validation_dataset = Cinc2020Dataset(X_val, y_val)
 
-        self.train_loader = DataLoader(
-            self.train_dataset, batch_size=128, shuffle=False
-        )
-        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=False)
+        self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
+        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=True)
         self.validation_loader = DataLoader(
-            self.validation_dataset, batch_size=128, shuffle=False
+            self.validation_dataset, batch_size=128, shuffle=True
         )
 
         self.model = self.load_model()
@@ -119,7 +119,7 @@ class dilatedCNNExperiment:
             os.makedirs(output_dir)
 
         # Ensure y_trues and y_preds are numpy arrays for easy manipulation
-        y_preds = y_preds.cpu().detach().numpy()
+        y_preds = y_preds.cpu().detach().numpy().astype(int)
         y_probs = y_probs.cpu().detach().numpy()
 
         # Iterate over each sample
