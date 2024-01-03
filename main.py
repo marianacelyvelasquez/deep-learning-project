@@ -38,10 +38,10 @@ if __name__ == "__main__":
     X_test = np.array(record_paths_test)
     y_test = np.array(labels_test)
 
-    random_state = 821385989
-    stratifier = IterativeStratification(
-        n_splits=Config.NUM_FOLDS, random_state=random_state
-    )
+    # TODO: Fix numpy seeds and torch seeds
+    np.random.seed(42)
+
+    stratifier = IterativeStratification(n_splits=Config.NUM_FOLDS)
 
     # Read optional checkpoint path
     checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else None
