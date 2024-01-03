@@ -59,7 +59,7 @@ def get_record_paths_and_labels_binary_encoded_list(
     # Process each record and save to the appropriate directory
     for dirpath, dirnames, filenames in os.walk(absolute_path):
         # Filtering out hidden files
-        filenames = [f for f in filenames if not f.startswith('.')]
+        filenames = [f for f in filenames if not f.startswith(".")]
 
         for filename in filenames:
             if filename.endswith(".hea"):
@@ -170,9 +170,9 @@ def preprocess_dataset(source_dir: str):
 
     # Initialize the processor TODO check the paths are correct lol
     processor = Processor(source_dir)
-    processor.process_records(record_paths_train, processed_dir_training)
-    processor.process_records(record_paths_test, processed_dir_testing)
-    processor.process_records(record_paths_val, processed_dir_validating)
+    processor.process_records(record_paths_train, processed_dir_training, their=True)
+    processor.process_records(record_paths_test, processed_dir_testing, their=True)
+    processor.process_records(record_paths_val, processed_dir_validating, their=True)
 
     # # TODO: copy .mat files to directories
     # for filename in Path(input_dir).glob("*.mat"):
@@ -184,6 +184,8 @@ def preprocess_dataset(source_dir: str):
 # This is the part of the script that handles command line arguments
 if __name__ == "__main__":
     import sys
+
+    np.random.seed(42)
 
     if len(sys.argv) == 2:
         print("\n Entering pre-processing mode \n")
@@ -209,10 +211,14 @@ if __name__ == "__main__":
 
         train_size = 0.1
         test_size = 0.05
-        sample_distribution_per_fold = [train_size, test_size]
+        sample_distribution_per_fold = [
+            train_size,
+            test_size,
+            1 - train_size - test_size,
+        ]
 
         stratifier = IterativeStratification(
-            n_splits=2,
+            n_splits=3,
             order=2,
             sample_distribution_per_fold=sample_distribution_per_fold,
         )
@@ -230,7 +236,7 @@ if __name__ == "__main__":
         X_test = X[test_indexes]
 
         processor = Processor()
-        processor.process_records(X_train, train_data_dir)
-        processor.process_records(X_test, test_data_dir)
+        processor.process_records(X_train, train_data_dir, their=True)
+        processor.process_records(X_test, test_data_dir, their=True)
     else:
         print("Usage: python preprocess_dataset.py <data_source_dir>")
