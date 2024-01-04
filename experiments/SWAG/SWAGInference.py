@@ -48,6 +48,7 @@ class SWAGInference:
         #      2. Predict probabilities with sampled model
         #      3. repeat 1-2 for num_bma_samples times
         #      4. Average the probabilities over the num_bma_samples
+        pass
 
     def sample_parameters(self) -> None:
         # TODO: Loop over each layer in the model (self.model.named_parameters())
