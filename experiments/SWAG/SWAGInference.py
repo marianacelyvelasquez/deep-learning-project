@@ -5,8 +5,6 @@ from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
 
 class SWAGInference:
     def __init__(self,
-                 model,
-                 train_loader,
                  X_train, #beginning: for dilatedCNN
                  y_train,
                  X_val,
@@ -43,13 +41,14 @@ class SWAGInference:
             checkpoint_path=checkpoint_path,
         )
 
-        # Load training data
-        self.train_loader = train_loader
+        # Load training data, test data
+        # TODO: test and train as in CNN split ???
+        self.train_loader = self.network.train_loader
+        self.test_loader = self.network.test_loader
 
-        # TODO: Load test data
 
         # Load model
-        self.model = model
+        self.model = self.network.model
 
         # TODO: understand what to load when Load optimizer - network and swag_learning_rate
         cycle_len = 5  # You can adjust the cycle length
