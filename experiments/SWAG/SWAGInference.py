@@ -1,5 +1,6 @@
 import torch
 import collections
+import tqdm
 import torch.nn as nn
 from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
 
@@ -102,11 +103,59 @@ class SWAGInference:
         self.weight_copies.append(theta_difference)
 
     def fit_swag(self) -> None:
+        # TODO: MARI review the whole logic in details and test
         # TODO: init theta and theta_squared
         # TODO: set network in training mode
         # TODO: run swag epochs amount of epochs
         #       for each epoch (resp update freq.) run self.update_swag()
-        pass
+
+        # TODO: review these variables defs
+        loader = self.train_loader
+        loss = self.loss
+        optimizer = self.optimizer
+        lr_scheduler = self.lr_scheduler
+
+        self.theta = {name: param.detach().clone()
+                      for name, param in self.network.named_parameters()}
+        self.theta_squared = {name: param.detach().clone(
+        )**2 for name, param in self.network.named_parameters()}
+
+        self.network.model.train()
+        with tqdm.trange(self.swag_epochs, desc="Running gradient descent for SWA") as pbar:
+            pbar_dict = {}
+            for epoch in pbar:
+                average_loss = 0.0
+                average_accuracy = 0.0
+                num_samples_processed = 0
+                for batch_xs, batch_ys in loader:
+                    optimizer.zero_grad()
+                    pred_ys = self.network(batch_xs)
+                    batch_loss = loss(input=pred_ys, target=batch_ys)
+                    batch_loss.backward()
+                    optimizer.step()
+                    pbar_dict["lr"] = lr_scheduler.get_last_lr()[0]
+                    lr_scheduler.step()
+                    
+                    
+                    # Most of this :point_down: is updating metrics
+                    # Calculate cumulative average training loss and accuracy
+                    average_loss = (batch_xs.size(0) * batch_loss.item() + num_samples_processed * average_loss) / (
+                        num_samples_processed + batch_xs.size(0)
+                    )
+                    average_accuracy = (
+                        torch.sum(pred_ys.argmax(dim=-1) == batch_ys).item()
+                        + num_samples_processed * average_accuracy
+                    ) / (num_samples_processed + batch_xs.size(0))
+                    num_samples_processed += batch_xs.size(0)
+                    pbar_dict["avg. epoch loss"] = average_loss
+                    pbar_dict["avg. epoch accuracy"] = average_accuracy
+                    pbar.set_postfix(pbar_dict)
+                # End of just updating metrics
+
+                # Implement periodic SWAG updates using the attributes defined in __init__
+                if epoch % self.swag_update_freq == 0:
+                    self.n = epoch // self.swag_update_freq + 1
+                    self.update_swag()
 
     def calibrate(self) -> None:
         # TODO: Calibrate model. Ask Ric. For beginning we can just
