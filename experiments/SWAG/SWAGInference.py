@@ -1,4 +1,5 @@
 import torch
+import collections
 import torch.nn as nn
 from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
 
@@ -54,6 +55,7 @@ class SWAGInference:
         cycle_len = 5  # You can adjust the cycle length
         self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
                                                          max_lr=swag_learning_rate, step_size_up=cycle_len)
+        # TODO: Define learning rate scheduler?
 
         self.optimizer =  torch.optim.SGD(
             self.network.parameters(),
@@ -67,15 +69,17 @@ class SWAGInference:
             reduction='mean'
         )
 
-        # TODO: Define learning rate scheduler
-
         # Allocate memory for theta, theta_squared, D (D-matrix)
         self.theta = self._create_weight_copy()
         self.theta_squared = self._create_weight_copy()
         self.D = self._create_weight_copy()
+
+        # ADDED: for full SWAG
+        self.weight_copies =  collections.deque(maxlen=swag_epochs * swag_update_freq) #Pascal's team did different
         
         # Define prediction threshold (used for calibration I think)
         self.prediction_threshold = 0.5 # TODO: Ric help think of a sensible threshold
+
         # set current iteration n - used to compute sigma etc.
         self.n = 0
 
