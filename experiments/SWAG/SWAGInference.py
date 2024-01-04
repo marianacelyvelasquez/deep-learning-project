@@ -85,9 +85,21 @@ class SWAGInference:
 
 
     def update_swag(self) -> None:
-        # TODO: Compute SWAG-Diagonal
-        # TODO: Compute Full SWAG
-        pass
+        # TODO: Check that this works (esp. the current_params thing)
+        current_params = {name: param.clone() for name, param in self.network.model.named_parameters()} 
+
+        # Update swag diagonal
+        for name, param in current_params:
+            print(f"Updating {name} with param {param}")
+            self.theta[name] = (self.n*self.theta[name] + param)/(self.n + 1)
+            self.theta_squared[name] = (
+                self.n*self.theta_squared[name] + param**2)/(self.n + 1)
+            
+        #Update full swag
+        theta_difference = self._create_weight_copy()
+        for name, param in current_params.items():
+            theta_difference[name] = torch.clamp(param - self.theta[name], min=1e-10)
+        self.weight_copies.append(theta_difference)
 
     def fit_swag(self) -> None:
         # TODO: init theta and theta_squared
