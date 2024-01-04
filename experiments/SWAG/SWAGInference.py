@@ -1,26 +1,55 @@
+import torch
+import torch.nn as nn
+
 class SWAGInference:
-    def __init__(self) -> None:
-        # TODO: Fix randomness
+    def __init__(self, model, train_loader, swag_epochs=30, swag_update_freq=1,
+                 swag_learning_rate=0.045, deviation_matrix_max_rank=15, bma_samples=30) -> None:
 
-        # TODO: Defined num swag epochs
-        # TODO: Define swag learning rate
-        # TODO: Define swag update frequency
-        # TODO: Define deviation matrix max rank
-        # TODO: Define number of BMA samples
+        #Fix randomness
+        torch.manual_seed(42)
 
-        # TODO: Load training data
+        # Define num swag epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
+        self.swag_epochs = swag_epochs
+        self.swag_learning_rate = swag_learning_rate
+        self.swag_update_freq = swag_update_freq
+        self.deviation_matrix_max_rank = deviation_matrix_max_rank
+        self.bma_samples = bma_samples
+
+        #TODO: Network - experimental
+        self.network = None
+
+        # Load training data
+        self.train_loader = train_loader
+
         # TODO: Load test data
-        # TODO: Load model
-        # TODO: Load optimizer
-        # TODO: Define loss
+
+        # Load model
+        self.model = model
+
+        # TODO: understand what to load when Load optimizer - network and swag_learning_rate
+        self.optimizer =  torch.optim.SGD(
+            self.network.parameters(),
+            lr=self.swag_learning_rate,
+            momentum=0.9,
+            nesterov=False,
+            weight_decay=1e-4,
+        )
+        # Define loss
+        self.loss = nn.CrossEntropyLoss(
+            reduction='mean'
+        )
+
         # TODO: Define learning rate scheduler
 
-        # TODO: Allocate memory for theta
-        # TODO: Allocate memory for theta_squared
-        # TODO: Allocate memory for D
+        # Allocate memory for theta, theta_squared, D (D-matrix)
+        self.theta = self._create_weight_copy()
+        self.theta_squared = self._create_weight_copy()
+        self.D = self._create_weight_copy()
         
-        # TODO: Define prediction thresholt (used for calibration I think)
-        # TODO: set current iteration n - used to compute sigma etc.
+        # Define prediction threshold (used for calibration I think)
+        self.prediction_threshold = 0.5 # TODO: Ric help think of a sensible threshold
+        # set current iteration n - used to compute sigma etc.
+        self.n = 0
         pass
 
     def update_swag(self) -> None:
@@ -73,8 +102,11 @@ class SWAGInference:
         pass
 
     def _create_weight_copy(self) -> None:
-        # TODO: Helper method used to allocate memory for weights.
-        pass
+        """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
+        return {
+            name: torch.zeros_like(param, requires_grad=False)
+            for name, param in self.network.named_parameters()
+        }
 
     def _update_batchnorm(self) -> None:
         # TODO: Helper method used to update batchnorm.
