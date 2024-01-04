@@ -1,9 +1,25 @@
 import torch
 import torch.nn as nn
+from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
+
 
 class SWAGInference:
-    def __init__(self, model, train_loader, swag_epochs=30, swag_update_freq=1,
-                 swag_learning_rate=0.045, deviation_matrix_max_rank=15, bma_samples=30) -> None:
+    def __init__(self,
+                 model,
+                 train_loader,
+                 X_train, #beginning: for dilatedCNN
+                 y_train,
+                 X_val,
+                 y_val,
+                 X_test,
+                 y_test,
+                 CV_k,
+                 checkpoint_path=None, #end: for dilatedCNN
+                 swag_epochs=30,
+                 swag_update_freq=1,
+                 swag_learning_rate=0.045,
+                 deviation_matrix_max_rank=15,
+                 bma_samples=30) -> None:
 
         #Fix randomness
         torch.manual_seed(42)
@@ -15,8 +31,17 @@ class SWAGInference:
         self.deviation_matrix_max_rank = deviation_matrix_max_rank
         self.bma_samples = bma_samples
 
-        #TODO: Network - experimental
-        self.network = None
+        #TODO: Network - DOES THIS MAKE SENSE?
+        self.network = dilatedCNNExperiment(
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            X_test,
+            y_test,
+            CV_k,
+            checkpoint_path=checkpoint_path,
+        )
 
         # Load training data
         self.train_loader = train_loader
@@ -27,6 +52,10 @@ class SWAGInference:
         self.model = model
 
         # TODO: understand what to load when Load optimizer - network and swag_learning_rate
+        cycle_len = 5  # You can adjust the cycle length
+        self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
+                                                         max_lr=swag_learning_rate, step_size_up=cycle_len)
+
         self.optimizer =  torch.optim.SGD(
             self.network.parameters(),
             lr=self.swag_learning_rate,
@@ -50,7 +79,7 @@ class SWAGInference:
         self.prediction_threshold = 0.5 # TODO: Ric help think of a sensible threshold
         # set current iteration n - used to compute sigma etc.
         self.n = 0
-        pass
+
 
     def update_swag(self) -> None:
         # TODO: Compute SWAG-Diagonal
