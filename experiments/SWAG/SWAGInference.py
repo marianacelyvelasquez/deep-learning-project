@@ -227,4 +227,44 @@ class SWAGInference:
     def _update_batchnorm(self) -> None:
         # TODO: Helper method used to update batchnorm.
         # Understand why we actually have to do that
-        pass
+        """
+        Reset and fit batch normalization statistics using the training dataset self.train_dataset.
+        They provide this method for convenience.
+        See the SWAG paper for why this is required.
+
+        Batch normalization usually uses an exponential moving average, controlled by the `momentum` parameter.
+        However, we are not training but want the statistics for the full training dataset.
+        Hence, setting `momentum` to `None` tracks a cumulative average instead.
+        The following code stores original `momentum` values, sets all to `None`,
+        and restores the previous hyperparameters after updating batchnorm statistics.
+        """
+
+        old_momentum_parameters = dict()
+        for module in self.network.model.modules():
+            # Only need to handle batchnorm modules
+            if not isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+                continue
+
+            # Store old momentum value before removing it
+            old_momentum_parameters[module] = module.momentum
+            module.momentum = None
+
+            # Reset batch normalization statistics
+            module.reset_running_stats() #MARI what is this ???
+
+        loader = torch.utils.data.DataLoader(
+            self.train_loader.dataset,
+            batch_size=32,
+            shuffle=False,
+            num_workers=0,
+            drop_last=False,
+        )
+
+        self.network.model.train()
+        for (batch_xs,) in loader:
+            self.network(batch_xs)
+        self.network.eval()
+
+        # Restore old `momentum` hyperparameter values
+        for module, momentum in old_momentum_parameters.items():
+            module.momentum = momentum
