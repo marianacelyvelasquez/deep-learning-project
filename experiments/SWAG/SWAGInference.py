@@ -1,6 +1,7 @@
 import torch
 import collections
 import tqdm
+import math
 import torch.nn as nn
 from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
 
@@ -169,17 +170,43 @@ class SWAGInference:
         pass
 
     def sample_parameters(self) -> None:
-        # TODO: Loop over each layer in the model (self.model.named_parameters())
-        # TODO: Draw a vector z_1 and z_2 randomly
-        # TODO: Compute mean and std
-        # TODO: Compute diagonal covariance matrix using mean + std*z_1
-        # TODO: Compute full covariance matrix by doing D*z_2
-        # TODO: Load sampled params into model
-        # TODO: Update batchnorm
-
         # Note: Be sure to do the math here correctly!
         # The solution might have a tiny error in it.
-        pass
+
+        # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
+
+        # Loop over each layer in the model (self.model.named_parameters())
+        for name, param in self.network.model.named_parameters():
+            # SWAG-diagonal part
+            # Draw vectors z_1 and z_2 almost randomly
+            z_1 = torch.normal(mean=0.0, std=1.0, size=param.size()) # random sample diagonal
+            z_2 = torch.normal(mean=0.0, std=1.0, size=param.size()) # random sample full SWAG
+
+            # Compute mean and std
+            current_mean = self.theta[name]
+            current_std = torch.normal(mean=current_mean, std=torch.ones_like(current_mean))
+
+            assert current_mean.size() == param.size() and current_std.size() == param.size()
+
+            ## Diagonal part
+
+            # Compute diagonal covariance matrix using mean + std * z_1
+            sampled_param = current_mean + (1.0 / math.sqrt(2.0)) * current_std * z_1
+
+            ## Full SWAG part
+
+            # Compute full covariance matrix by doing D * z_2
+            sampled_param += (1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)) * torch.sum(
+                D_i[name] * z_2 for D_i in self.weight_copies
+            )
+
+            # Load sampled params into model
+            # Modify weight value in-place; directly changing self.network
+            param.data = sampled_param
+
+
+        # Update batchnorm
+        self._update_batchnorm()
 
     def predict_labels(self) -> None:
         # TODO: Predict labels. One needs to do much rsearch for this
