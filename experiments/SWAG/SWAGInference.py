@@ -57,6 +57,7 @@ class SWAGInference:
         self.optimizer =  self.network.optimizer
 
         cycle_len = 5  # You can adjust the cycle length
+        # NOTE: could add a step_size_down parameter (set it to cycle_len) so the cyclic pattern is not just increasing
         self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
                                                          max_lr=swag_learning_rate, step_size_up=cycle_len)
 
@@ -80,7 +81,7 @@ class SWAGInference:
 
     def update_swag(self) -> None:
         # TODO: Check that this works (esp. the current_params thing)
-        current_params = {name: param.clone() for name, param in self.network.model.named_parameters()} 
+        current_params = {name: param.detach().clone() for name, param in self.network.model.named_parameters()} 
 
         # Update swag diagonal
         for name, param in current_params:
@@ -97,10 +98,10 @@ class SWAGInference:
 
     def fit_swag(self) -> None:
         # TODO: MARI review the whole logic in details and test
-        # TODO: init theta and theta_squared
-        # TODO: set network in training mode
-        # TODO: run swag epochs amount of epochs
-        #       for each epoch (resp update freq.) run self.update_swag()
+        # What this should do: init theta and theta_squared
+        # set network in training mode
+        # run swag epochs amount of epochs
+        # for each epoch (resp update freq.) run self.update_swag()
 
         # TODO: review these variables defs
         loader = self.train_loader
@@ -133,6 +134,7 @@ class SWAGInference:
                     
                     # Most of this :point_down: is updating metrics
                     # Calculate cumulative average training loss and accuracy
+                    #NOTE: batch_loss.item() should be replaced if working in a multi-GPU environment (?) (use torch.Tensor.cpu().numpy())
                     average_loss = (batch_xs.size(0) * batch_loss.item() + num_samples_processed * average_loss) / (
                         num_samples_processed + batch_xs.size(0)
                     )
