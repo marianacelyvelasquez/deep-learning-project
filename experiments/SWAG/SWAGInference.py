@@ -296,7 +296,10 @@ class SWAGInference:
             module.momentum = None
 
             # Reset batch normalization statistics
-            module.reset_running_stats() #MARI what is this ???
+            #  :eyes: reset the running statistics of the batch normalization layer,
+            #  including mean and variance. Done to compute fresh statistics
+            #  using the entire training dataset during the inference phase
+            module.reset_running_stats()
 
         loader = torch.utils.data.DataLoader(
             self.train_loader.dataset,
