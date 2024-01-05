@@ -160,14 +160,50 @@ class SWAGInference:
         # Maybe calibration is done with temperature scaling?
         pass
 
-    def predict_probabilities(self) -> None:
-        # TODO: Set model into eval mode
-        # TODO: Implement Bayesian Model Averaging by doing:
-        #      1. Sample new model from SWAG (call self.sample_parameters())
-        #      2. Predict probabilities with sampled model
-        #      3. repeat 1-2 for num_bma_samples times
-        #      4. Average the probabilities over the num_bma_samples
-        pass
+    def predict_probabilities(self, loader: torch.utils.data.DataLoader) -> None:
+        """
+        Goal: Implement Bayesian Model Averaging by doing:
+             1. Sample new model from SWAG (call self.sample_parameters())
+             2. Predict probabilities with sampled model
+             3. repeat 1-2 for num_bma_samples times
+             4. Average the probabilities over the num_bma_samples
+        """
+        # QUESTION: should `loader` be an input so one cass pass in `self.test_loader` vs `self.train_loader` ?
+
+        with torch.no_grad():
+            self.network.model.eval()
+
+            # Perform Bayesian model averaging:
+            # Instead of sampling self.bma_samples networks (using self.sample_parameters())
+            # for each datapoint, you can save time by sampling self.bma_samples networks,
+            # and perform inference with each network on all samples in loader.
+
+
+            # per_model_sample_predictions contints a list of all predictions for all models.
+            # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
+            per_model_sample_predictions = []
+            for _ in tqdm.trange(self.bma_samples, desc="Performing Bayesian model averaging"):
+                self.sample_parameters()  # Samples new weights and loads it into our DNN
+
+                # predictions is the predictions of one model for all samples in loader
+
+                predictions = self._predict_probabilities_vanilla(loader)
+                per_model_sample_predictions.append(predictions)
+
+            assert len(per_model_sample_predictions) == self.bma_samples
+            assert all(
+                isinstance(model_sample_predictions, torch.Tensor)
+                and model_sample_predictions.dim() == 2  # N x C
+                and model_sample_predictions.size(1) == 6
+                for model_sample_predictions in per_model_sample_predictions
+            )
+
+            # Add all model predictions together and take the mean
+            bma_probabilities = torch.mean(torch.stack(
+                per_model_sample_predictions, dim=0), dim=0)
+
+            assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
+            return bma_probabilities
 
     def sample_parameters(self) -> None:
         # Note: Be sure to do the math here correctly!
@@ -223,6 +259,16 @@ class SWAGInference:
             name: torch.zeros_like(param, requires_grad=False)
             for name, param in self.network.named_parameters()
         }
+
+    def _predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
+        # TODO: Use more sophisticated prediction method than softmax
+        predictions = []
+        for (batch_xs,) in loader:
+            predictions.append(self.network(batch_xs))
+
+        predictions = torch.cat(predictions)
+        return torch.softmax(predictions, dim=-1)
+
 
     def _update_batchnorm(self) -> None:
         # TODO: Helper method used to update batchnorm.
