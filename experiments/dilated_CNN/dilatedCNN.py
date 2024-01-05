@@ -200,6 +200,10 @@ class dilatedCNNExperiment:
         print(f"Loading optimizer state dict from {self.checkpoint_path}")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
+        # Append lr_scheduler for SWAG implementation with cyclic learning rate
+        if "lr_scheduler_state_dict" in checkpoint:
+            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+
         return optimizer
 
     def load_model(self):

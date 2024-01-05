@@ -53,22 +53,15 @@ class SWAGInference:
         self.model = self.network.model
 
         # TODO: understand what to load when Load optimizer - network and swag_learning_rate
+        # Define optimizer and learning rate scheduler
+        self.optimizer =  self.network.optimizer
+
         cycle_len = 5  # You can adjust the cycle length
         self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
                                                          max_lr=swag_learning_rate, step_size_up=cycle_len)
-        # TODO: Define learning rate scheduler?
 
-        self.optimizer =  torch.optim.SGD(
-            self.network.parameters(),
-            lr=self.swag_learning_rate,
-            momentum=0.9,
-            nesterov=False,
-            weight_decay=1e-4,
-        )
         # Define loss
-        self.loss = nn.CrossEntropyLoss(
-            reduction='mean'
-        )
+        self.loss_fn = self.network.loss_fn
 
         # Allocate memory for theta, theta_squared, D (D-matrix)
         self.theta = self._create_weight_copy()
@@ -111,7 +104,7 @@ class SWAGInference:
 
         # TODO: review these variables defs
         loader = self.train_loader
-        loss = self.loss
+        loss = self.loss_fn
         optimizer = self.optimizer
         lr_scheduler = self.lr_scheduler
 
@@ -130,6 +123,7 @@ class SWAGInference:
                 for batch_xs, batch_ys in loader:
                     optimizer.zero_grad()
                     pred_ys = self.network(batch_xs)
+                    #BinaryFocalLoss takes as input prediction_logits, labels, self.network.model.training according to dilatedCNN.py implementation
                     batch_loss = loss(input=pred_ys, target=batch_ys)
                     batch_loss.backward()
                     optimizer.step()
