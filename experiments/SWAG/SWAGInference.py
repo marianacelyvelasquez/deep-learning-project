@@ -59,8 +59,14 @@ class SWAGInference:
 
         cycle_len = 5  # You can adjust the cycle length
         # NOTE: could add a step_size_down parameter (set it to cycle_len) so the cyclic pattern is not just increasing
-        self.lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
-                                                         max_lr=swag_learning_rate, step_size_up=cycle_len)
+        self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer=self.optimizer, step_size=5, gamma=1 #testing variables – no strings attached
+            )
+
+        ### NOTE: or try 
+        # torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
+        #                                   max_lr=swag_learning_rate, step_size_up=cycle_len, cycle_momentum=True)
+
 
         # Define loss
         self.loss_fn = self.network.loss_fn
@@ -111,9 +117,9 @@ class SWAGInference:
         lr_scheduler = self.lr_scheduler
 
         self.theta = {name: param.detach().clone()
-                      for name, param in self.network.named_parameters()}
+                      for name, param in self.network.model.named_parameters()}
         self.theta_squared = {name: param.detach().clone(
-        )**2 for name, param in self.network.named_parameters()}
+        )**2 for name, param in self.network.model.named_parameters()}
 
         self.network.model.train()
         with tqdm.trange(self.swag_epochs, desc="Running gradient descent for SWA") as pbar:
@@ -122,12 +128,25 @@ class SWAGInference:
                 average_loss = 0.0
                 average_accuracy = 0.0
                 num_samples_processed = 0
-                for batch_xs, batch_ys in loader:
+                print("\n about to start for loop on loader \n")
+                # items in loader are tuples: first elt is a list of strings like 'A0194m', 
+                # the second element is a tuple of two tensors.
+                # The tensors correspond to your input data (batch_xs) and target labels (batch_ys)
+                for item in loader:
+                    names = item[0]
+                    batch_data = item[1]  # batch_data.shape: torch.Size([110, 12, 5000])
+
+                    # If batch_data is a tensor containing both input data and target labels, you might need to further split it
+                    batch_xs = batch_data[:, :-1, :]  # Assuming the last dimension represents features
+                    batch_ys = batch_data[:, -1, :]   # Assuming the last dimension represents labels
+                    print(f"First name of loader item: {names[0]}")
+                    print(f"batch_data.shape: {batch_data.shape}")
+
                     optimizer.zero_grad()
                     pred_ys = self.network(batch_xs)
                     #BinaryFocalLoss takes as input prediction_logits, labels, self.network.model.training according to dilatedCNN.py implementation
                     batch_loss = loss(input=pred_ys, target=batch_ys)
-                    batch_loss.backward()
+                    batch_loss.backward() # MARI: FIX THIS
                     optimizer.step()
                     pbar_dict["lr"] = lr_scheduler.get_last_lr()[0]
                     lr_scheduler.step()
@@ -257,7 +276,7 @@ class SWAGInference:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
         return {
             name: torch.zeros_like(param, requires_grad=False)
-            for name, param in self.network.named_parameters()
+            for name, param in self.network.model.named_parameters()
         }
 
     def _predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
@@ -312,8 +331,11 @@ class SWAGInference:
         self.network.model.train()
         for (batch_xs,) in loader:
             self.network(batch_xs)
-        self.network.eval()
+        self.network.model.eval()
 
         # Restore old `momentum` hyperparameter values
         for module, momentum in old_momentum_parameters.items():
             module.momentum = momentum
+
+## TODO:
+            # 1. Decide whether to keep self.network.model... or self.model...
