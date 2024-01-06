@@ -7,33 +7,23 @@ from utils.setup_loss_fn import setup_loss_fn
 from utils.get_device import get_device
 from utils.MetricsManager import MetricsManager
 from experiments.SWAG.config import Config
+from utils.load_optimizer import load_optimizer
 
 
 class SWAGInference:
     def __init__(self,
-                 X_train, #beginning: for dilatedCNN
-                 y_train,
-                 X_val,
-                 y_val,
-                 X_test,
-                 y_test,
-                 CV_k,
                  checkpoint_path, #end: for dilatedCNN
-                 swag_epochs=30,
-                 swag_update_freq=1,
-                 swag_learning_rate=0.045,
-                 deviation_matrix_max_rank=15,
-                 bma_samples=30) -> None:
+                ) -> None:
 
         #Fix randomness
         torch.manual_seed(42)
 
         # Define num swag epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
-        self.swag_epochs = swag_epochs
-        self.swag_learning_rate = swag_learning_rate
-        self.swag_update_freq = swag_update_freq
-        self.deviation_matrix_max_rank = deviation_matrix_max_rank
-        self.bma_samples = bma_samples
+        self.swag_epochs = Config.SWAG_EPOCHS
+        self.swag_learning_rate = Config.SWAG_LEARNING_RATE
+        self.swag_update_freq = Config.SWAG_UPDATE_FREQ
+        self.deviation_matrix_max_rank = Config.DEVIATION_MATRIX_MAX_RANK
+        self.bma_samples = Config.BMA_SAMPLES
 
         # Load training data, test data
         # TODO: test and train as in CNN split ???
@@ -58,7 +48,8 @@ class SWAGInference:
 
         # TODO: understand what to load when Load optimizer - network and swag_learning_rate
         # Define optimizer and learning rate scheduler
-        self.optimizer =  self.network.optimizer
+        self.optimizer = load_optimizer(self.model, self.device, checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=self.swag_learning_rate)
+
 
         # NOTE: could add a step_size_down parameter (set it to cycle_len=5) so the cyclic pattern is not just increasing
         self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
@@ -79,7 +70,7 @@ class SWAGInference:
         self.D = self._create_weight_copy()
 
         # ADDED: for full SWAG
-        self.weight_copies =  collections.deque(maxlen=swag_epochs * swag_update_freq) #Pascal's team did different
+        self.weight_copies =  collections.deque(maxlen=self.swag_epochs * self.swag_update_freq) #Pascal's team did different
         
         # Define prediction threshold (used for calibration I think)
         self.prediction_threshold = 0.5 # TODO: Ric help think of a sensible threshold

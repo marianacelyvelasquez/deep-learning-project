@@ -15,6 +15,7 @@ from utils.MetricsManager import MetricsManager
 from dataloaders.cinc2020.common import labels_map
 from utils.setup_loss_fn import setup_loss_fn
 from utils.get_device import get_device
+from utils.load_optimizer import load_optimizer
 
 
 class dilatedCNNExperiment:
@@ -76,7 +77,7 @@ class dilatedCNNExperiment:
 
         self.epoch, self.model = self.load_model(self.network_params, self.device, self.checkpoint_path)
 
-        self.optimizer = self.load_optimizer()
+        self.optimizer = load_optimizer(self.model, self.device, checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=0.001)
         self.loss_fn = setup_loss_fn(self.device, self.train_loader)
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
