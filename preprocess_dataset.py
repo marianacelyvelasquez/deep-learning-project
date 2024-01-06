@@ -181,15 +181,57 @@ def preprocess_dataset(source_dir: str):
     #         copyfile(filename, Path(dest_dir) / filename.name)
 
 
+def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
+    # Get lists of paths and labels for folder1
+    record_paths_folder1, labels_binary_encoded_list_folder1 = get_record_paths_and_labels_binary_encoded_list(data_source_dir_folder1)
+
+    X_1_tot = np.array(record_paths_folder1)
+    y_1_tot = np.array(labels_binary_encoded_list_folder1)
+
+    train_size = 0.1
+    test_size = 0.05
+    sample_distribution_per_fold = [
+        train_size,
+        test_size,
+        1 - train_size - test_size,
+    ]
+
+    stratifier = IterativeStratification(
+        n_splits=3,
+        order=2,
+        sample_distribution_per_fold=sample_distribution_per_fold,
+    )
+
+    splits = []
+    for _, set_indexes in stratifier.split(X_1_tot, y_1_tot):
+        # get X and y for this fold
+        # print(f" set_indexes: {set_indexes} \n ")
+        splits.append(set_indexes)
+
+    train_indexes = splits[0]
+    test_indexes = splits[1]
+
+    record_paths_train_folder1 = X_1_tot[train_indexes].tolist()
+    record_paths_test_folder1 = X_1_tot[test_indexes].tolist()
+
+    # Get lists of paths and labels for folder2
+    record_paths_folder2, labels_binary_encoded_list_folder2 = get_record_paths_and_labels_binary_encoded_list(data_source_dir_folder2)
+
+    # Combine record paths for the test set
+    record_paths_test = record_paths_test_folder1 + record_paths_folder2
+
+    return record_paths_train_folder1, record_paths_test
+
 # This is the part of the script that handles command line arguments
 if __name__ == "__main__":
     import sys
 
     np.random.seed(42)
 
-    if len(sys.argv) == 2:
+    if len(sys.argv) == 3:
         print("\n Entering pre-processing mode \n")
-        data_source_dir = sys.argv[1]
+        data_source_dir_folder1 = sys.argv[1]
+        data_source_dir_folder2 = sys.argv[2]
 
         train_data_dir = Config.TRAIN_DATA_DIR
         test_data_dir = Config.TEST_DATA_DIR
@@ -200,42 +242,15 @@ if __name__ == "__main__":
         if not os.path.exists(test_data_dir):
             os.makedirs(test_data_dir)
 
-        # Get lists of paths and labels
-        (
-            record_paths,
-            labels_binary_encoded_list,
-        ) = get_record_paths_and_labels_binary_encoded_list(data_source_dir)
+        # Call the new function to compose the stratified test set
+        record_paths_train, record_paths_test = compose_test_set(data_source_dir_folder1, data_source_dir_folder2)
 
-        X = np.array(record_paths)
-        y = np.array(labels_binary_encoded_list)
-
-        train_size = 0.8
-        test_size = 0.2
-        sample_distribution_per_fold = [
-            train_size,
-            test_size,
-        ]
-
-        stratifier = IterativeStratification(
-            n_splits=2,
-            order=2,
-            sample_distribution_per_fold=sample_distribution_per_fold,
-        )
-
-        splits = []
-        for _, set_indexes in stratifier.split(X, y):
-            # get X and y for this fold
-            # print(f" set_indexes: {set_indexes} \n ")
-            splits.append(set_indexes)
-
-        train_indexes = splits[0]
-        test_indexes = splits[1]
-
-        X_train = X[train_indexes]
-        X_test = X[test_indexes]
-
+        # Process training data
         processor = Processor()
-        processor.process_records(X_train, train_data_dir, their=True)
-        processor.process_records(X_test, test_data_dir, their=True)
+        processor.process_records(record_paths_train, train_data_dir, their=True)
+
+        # Process test data
+        processor.process_records(record_paths_test, test_data_dir, their=True)
+
     else:
-        print("Usage: python preprocess_dataset.py <data_source_dir>")
+        print("Usage: python preprocess_dataset.py <data_source_dir_folder1> <data_source_dir_folder2>")
