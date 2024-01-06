@@ -5,8 +5,6 @@ from tqdm import tqdm
 import numpy as np
 import numpy.typing as npt
 import torch
-
-from utils.loss import BinaryFocalLoss
 import utils.evaluate_12ECG_score as cinc_eval
 
 from experiments.dilated_CNN.config import Config
@@ -16,6 +14,8 @@ from torch.utils.data import DataLoader
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 from utils.MetricsManager import MetricsManager
 from dataloaders.cinc2020.common import labels_map
+from utils.setup_loss_fn import setup_loss_fn
+from utils.get_device import get_device
 
 
 class dilatedCNNExperiment:
@@ -50,7 +50,7 @@ class dilatedCNNExperiment:
 
         self.CV_k = CV_k
 
-        self.device = self.get_device()
+        self.device = get_device()
 
         # TODO: Currently we have one PyTorch Dataset in which we read all the d ata
         # and then we split it. Change it to first read all the data, then split it using
@@ -78,7 +78,7 @@ class dilatedCNNExperiment:
         self.model = self.load_model()
 
         self.optimizer = self.load_optimizer()
-        self.loss_fn = self.setup_loss_fn()
+        self.loss_fn = setup_loss_fn(self.device, self.train_loader)
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
         self.max_num_epochs = Config.MAX_NUM_EPOCHS
@@ -167,21 +167,6 @@ class dilatedCNNExperiment:
             os.symlink(original_path + ".hea", target_path + ".hea")
             os.symlink(original_path + ".mat", target_path + ".mat")
 
-    def get_device(self):
-        # Check if CUDA is available
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-            print("Using CUDA")
-        # Check if MPS is available
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-            print("Using METAL GPU")
-        # If neither CUDA nor MPS is available, use CPU
-        else:
-            device = torch.device("cpu")
-            print("Using CPU")
-
-        return device
 
     def load_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
@@ -250,24 +235,6 @@ class dilatedCNNExperiment:
 
         return model
 
-    def get_label_frequencies(self, loader):
-        labels = []
-
-        for _, _, label in loader:
-            labels.append(label.numpy())
-
-        labels = np.concatenate(labels, axis=0)
-
-        freq = np.sum(labels, axis=0)
-
-        return freq
-
-    def calc_pos_weights(self, loader):
-        freq = self.get_label_frequencies(loader)
-        freq = np.where(freq == 0, freq.max(), freq)
-
-        return torch.Tensor(np.around(freq.max() / freq, decimals=1))
-
     def read_records(self, source_dir):
         records = []
         for dirpath, dirnames, filenames in os.walk(source_dir):
@@ -322,33 +289,7 @@ class dilatedCNNExperiment:
             test_loader,
         )
 
-    def setup_loss_fn(self):
-        # pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1
-        # TODO: Make sure the values we compute make sense
 
-        # 1. Calculate class weights based on training data
-        pos_weights = self.calc_pos_weights(self.train_loader)
-
-        # 2. Adjust weights: subtract 1, halve the result, then add 1
-        # Subtracting 1 ensures that the most frequent class (which has a weight
-        # of 1) will now have a weight of 0, and all other classes will have
-        # their weights reduced by 1.  Multiplying by 0.5 reduces the difference
-        # between the weights of different classes, making the weights less
-        # extreme.  Adding 1 ensures that the weights are not less than 1, which
-        # would give more importance to the more frequent classes, the opposite
-        # of what we want when dealing with class imbalance.
-        pos_weights = ((pos_weights - 1) * 0.5) + 1
-
-        # pos_weights = ((self.calc_pos_weights(self.train_loader) - 1) * 0.5) + 1
-
-        # 3. Set up Binary Focal Loss function with adjusted weights
-        loss_fn = BinaryFocalLoss(
-            device=self.device,
-            gamma=2,
-            pos_weight=pos_weights,
-        )
-
-        return loss_fn
 
     def run_epochs(self):
         print("Storing training labels in output folder for later evlauation.")

@@ -3,6 +3,8 @@ import collections
 import tqdm
 import math
 from utils.load_model import load_model
+from utils.setup_loss_fn import setup_loss_fn
+from utils.get_device import get_device
 
 
 class SWAGInference:
@@ -23,6 +25,9 @@ class SWAGInference:
 
         #Fix randomness
         torch.manual_seed(42)
+
+        #Get device
+        self.device = get_device()
 
         # Define num swag epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
         self.swag_epochs = swag_epochs
@@ -68,7 +73,7 @@ class SWAGInference:
 
 
         # Define loss
-        self.loss_fn = self.network.loss_fn
+        self.loss_fn = setup_loss_fn(self.device, self.train_loader)
 
         # Allocate memory for theta, theta_squared, D (D-matrix)
         self.theta = self._create_weight_copy()
