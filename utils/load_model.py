@@ -1,6 +1,5 @@
 import torch
 import re
-from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment  # Adjust the import path based on your project structure
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 
 def load_model(
