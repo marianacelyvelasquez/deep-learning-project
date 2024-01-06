@@ -63,9 +63,11 @@ class dilatedCNNExperiment:
         # ) = self.setup_datasets()
 
         # Create datasets
-        self.train_dataset = Cinc2020Dataset(X_train, y_train)
-        self.test_dataset = Cinc2020Dataset(X_test, y_test)
-        self.validation_dataset = Cinc2020Dataset(X_val, y_val)
+        self.train_dataset = Cinc2020Dataset(X_train, y_train, process=True, their=True)
+        self.test_dataset = Cinc2020Dataset(X_test, y_test, process=True, their=True)
+        self.validation_dataset = Cinc2020Dataset(
+            X_val, y_val, process=True, their=True
+        )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
         self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=True)
@@ -199,10 +201,6 @@ class dilatedCNNExperiment:
 
         print(f"Loading optimizer state dict from {self.checkpoint_path}")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-        # Append lr_scheduler for SWAG implementation with cyclic learning rate
-        if "lr_scheduler_state_dict" in checkpoint:
-            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
 
         return optimizer
 
