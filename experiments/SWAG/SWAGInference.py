@@ -78,7 +78,7 @@ class SWAGInference:
         else:
             self.checkpoint_path = checkpoint_path
 
-        self.epoch, self.model = load_model(self.network_params, self.device, self.checkpoint_path)
+        self.model = load_model(self.network_params, self.device, self.checkpoint_path)
 
         # Define optimizer and learning rate scheduler
         self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=self.swag_learning_rate)

@@ -21,8 +21,6 @@ def load_model(
     checkpoint_dict = checkpoint["model_state_dict"]
     model_state_dict = model.state_dict()
 
-    epoch = checkpoint["epoch"] #RETURN EPOCH
-
     # filter out unnecessary keys
     # TODO: No sure what this is for i.e. why we just exlucde modules?
     # Was this simply for experimentation?
@@ -50,5 +48,5 @@ def load_model(
         if any(re.compile(p).match(k) for p in freeze_modules):
             param.requires_grad = False
 
-    return epoch, model
+    return model
 
