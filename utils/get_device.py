@@ -1,6 +1,6 @@
 import torch
 
-def get_device(self):
+def get_device():
     # Check if CUDA is available
     if torch.cuda.is_available():
         device = torch.device("cuda")

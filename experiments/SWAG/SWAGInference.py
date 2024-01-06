@@ -18,7 +18,7 @@ class SWAGInference:
                  X_test,
                  y_test,
                  CV_k,
-                 checkpoint_path=None, #end: for dilatedCNN
+                 checkpoint_path, #end: for dilatedCNN
                  swag_epochs=30,
                  swag_update_freq=1,
                  swag_learning_rate=0.045,
@@ -28,9 +28,6 @@ class SWAGInference:
         #Fix randomness
         torch.manual_seed(42)
 
-        #Get device
-        self.device = get_device()
-
         # Define num swag epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
         self.swag_epochs = swag_epochs
         self.swag_learning_rate = swag_learning_rate
@@ -38,26 +35,26 @@ class SWAGInference:
         self.deviation_matrix_max_rank = deviation_matrix_max_rank
         self.bma_samples = bma_samples
 
-        #TODO: Network - DOES THIS MAKE SENSE?
-        self.network = load_model(
-            checkpoint_path,
-            X_train,
-            y_train,
-            X_val,
-            y_val,
-            X_test,
-            y_test,
-            CV_k,
-        )
-
         # Load training data, test data
         # TODO: test and train as in CNN split ???
         self.train_loader = self.network.train_loader
         self.test_loader = self.network.test_loader
 
-
+        ##
         # Load model
-        self.model = self.network.model
+        ##
+        self.network_params = {
+            "in_channels": 12,
+            "channels": 108,
+            "depth": 6,
+            "reduced_size": 216,
+            "out_channels": 24,
+            "kernel_size": 3,
+        }
+        self.device = get_device()
+        self.checkpoint_path = checkpoint_path
+
+        self.epoch, self.model = load_model(self.network_params, self.device, self.checkpoint_path)
 
         # TODO: understand what to load when Load optimizer - network and swag_learning_rate
         # Define optimizer and learning rate scheduler
