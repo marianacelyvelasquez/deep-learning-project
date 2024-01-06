@@ -11,3 +11,4 @@ class Config:
     TRAIN_DATA_DIR = "data/cinc2020_processed_tiny/train"
     TEST_DATA_DIR = "data/cinc2020_processed_tiny/test"
     LABEL_24 = "data/label_cinc2020_top24.csv"
+    LEARNING_RATE = 0.001
