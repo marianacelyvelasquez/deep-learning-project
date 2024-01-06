@@ -22,9 +22,5 @@ class SWAGExperiment:
         self.swag_inference.calibrate()
 
         # Run SWAGInference::evaluate()
-        self.evaluate()
+        self.swag_inference.evaluate()
 
-    def evaluate(self) -> None:
-        # Implement your evaluation logic using the SWAGInference instance
-        # You can access the necessary components through self.swag_inference
-        pass

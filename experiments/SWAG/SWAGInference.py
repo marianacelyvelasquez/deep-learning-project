@@ -5,6 +5,8 @@ import math
 from utils.load_model import load_model
 from utils.setup_loss_fn import setup_loss_fn
 from utils.get_device import get_device
+from utils.MetricsManager import MetricsManager
+from experiments.SWAG.config import Config
 
 
 class SWAGInference:
@@ -88,6 +90,42 @@ class SWAGInference:
 
         # set current iteration n - used to compute sigma etc.
         self.n = 0
+
+        ##
+        # Metrics
+        ##
+
+        self.min_num_epochs = Config.MIN_NUM_EPOCHS
+        self.max_num_epochs = Config.MAX_NUM_EPOCHS
+        self.epoch = None
+
+        self.num_classes = 24
+
+        self.predictions = []
+
+        self.train_metrics_manager = MetricsManager(
+            name="train",
+            num_epochs=self.max_num_epochs,
+            num_classes=self.num_classes,
+            num_batches=len(self.train_loader),
+            CV_k=self.CV_k,
+        )
+
+        self.validation_metrics_manager = MetricsManager(
+            name="validation",
+            num_epochs=self.max_num_epochs,
+            num_classes=self.num_classes,
+            num_batches=len(self.validation_loader),
+            CV_k=self.CV_k,
+        )
+
+        self.test_metrics_manager = MetricsManager(
+            name="test",
+            num_epochs=self.max_num_epochs,
+            num_classes=self.num_classes,
+            num_batches=len(self.test_loader),
+            CV_k=self.CV_k,
+        )
 
 
     def update_swag(self) -> None:
@@ -341,5 +379,47 @@ class SWAGInference:
         for module, momentum in old_momentum_parameters.items():
             module.momentum = momentum
 
-## TODO:
-            # 1. Decide whether to keep self.network.model... or self.model...
+    def evaluate(self) -> None:
+        self.model.eval()
+        with tqdm(
+            self.test_loader,
+            desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
+            total=len(self.test_loader),
+        ) as pbar:
+            with torch.no_grad():
+                # Reset predictions
+                self.predictions = []
+
+                for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                    waveforms = waveforms.float().to(self.device)
+                    labels = labels.float().to(self.device)
+
+                    # Instead of using the original model, sample a set of parameters
+                    # using your SWAG sampling logic (you might need to implement this)
+                    self.sample_parameters()
+                    predictions_logits = self.model(waveforms)
+
+                    # Similar to the original model, compute the loss on the logits
+                    loss = self.loss_fn(predictions_logits, labels)
+
+                    predictions_probabilities = torch.sigmoid(predictions_logits)
+                    predictions = torch.round(predictions_probabilities)
+
+                    self.predictions.extend(predictions.cpu().detach().tolist())
+
+                    # Update your metrics manager (you may need to adapt this based on your setup)
+                    self.test_metrics_manager.update_loss(
+                        loss, epoch=0, batch_i=batch_i
+                    )
+                    self.test_metrics_manager.update_confusion_matrix(
+                        labels, predictions, epoch=0
+                    )
+
+                    # Save predictions if needed
+                    self.save_prediction(
+                        filenames, predictions, predictions_probabilities, "test"
+                    )
+                    # Save labels if needed
+                    # self.save_label(
+                    #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
+                    # )
