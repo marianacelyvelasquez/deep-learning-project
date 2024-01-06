@@ -4,20 +4,21 @@ import pandas as pd
 from tqdm import tqdm
 import numpy as np
 import numpy.typing as npt
+import csv
 import torch
+
+from utils.loss import BinaryFocalLoss
 import utils.evaluate_12ECG_score as cinc_eval
 
 from experiments.dilated_CNN.config import Config
 
-from dataloaders.cinc2020.dataset import Cinc2020Dataset
+from dataloaders.cinc2020.datasetThePaperCode import Cinc2020Dataset
 from torch.utils.data import DataLoader
+from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 from utils.MetricsManager import MetricsManager
 from dataloaders.cinc2020.common import labels_map
-from utils.setup_loss_fn import setup_loss_fn
-from utils.get_device import get_device
 from utils.load_optimizer import load_optimizer
-from utils.load_model import load_model
-
+from utils.setup_loss_fn import setup_loss_fn
 
 class dilatedCNNExperiment:
     def __init__(
@@ -28,6 +29,8 @@ class dilatedCNNExperiment:
         y_val,
         X_test,
         y_test,
+        classes,
+        clases_test,
         CV_k,
         checkpoint_path=None,
     ):
@@ -51,7 +54,10 @@ class dilatedCNNExperiment:
 
         self.CV_k = CV_k
 
-        self.device = get_device()
+        self.device = self.get_device()
+
+        self.classes = classes
+        self.classes_test = clases_test
 
         # TODO: Currently we have one PyTorch Dataset in which we read all the d ata
         # and then we split it. Change it to first read all the data, then split it using
@@ -64,25 +70,36 @@ class dilatedCNNExperiment:
         # ) = self.setup_datasets()
 
         # Create datasets
-        self.train_dataset = Cinc2020Dataset(X_train, y_train, process=True, their=True)
-        self.test_dataset = Cinc2020Dataset(X_test, y_test, process=True, their=True)
+
+        # THIS IS FOR DATASET THEIR NOT OUR OUR IS A BIT DIFFERENT TO CALL
+        self.train_dataset = Cinc2020Dataset(
+            X_train,
+            y_train,
+            classes=classes,
+            root_dir=Config.TRAIN_DATA_DIR,
+            name="train",
+        )
         self.validation_dataset = Cinc2020Dataset(
-            X_val, y_val, process=True, their=True
+            X_val, y_val, classes=classes, root_dir=Config.TRAIN_DATA_DIR, name="val"
+        )
+        self.test_dataset = Cinc2020Dataset(
+            X_test, y_test, classes=classes, root_dir=Config.TEST_DATA_DIR, name="test"
         )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
-        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=True)
+        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=False)
         self.validation_loader = DataLoader(
             self.validation_dataset, batch_size=128, shuffle=True
         )
 
-        self.epoch, self.model = load_model(self.network_params, self.device, self.checkpoint_path)
+        self.model = self.load_model()
 
-        self.optimizer = load_optimizer(self.model, self.device, checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=0.001)
-        self.loss_fn = setup_loss_fn(self.device, self.train_loader)
+        self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=Config.LEARNING_RATE)
+        self.loss_fn = setup_loss_fn(self.train_loader, self.device) #you only pass the loader to compute the positive weights, which are only needed when training
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
         self.max_num_epochs = Config.MAX_NUM_EPOCHS
+        self.epoch = None
 
         self.num_classes = 24
 
@@ -94,6 +111,7 @@ class dilatedCNNExperiment:
             num_classes=self.num_classes,
             num_batches=len(self.train_loader),
             CV_k=self.CV_k,
+            classes=self.classes,
         )
 
         self.validation_metrics_manager = MetricsManager(
@@ -102,6 +120,7 @@ class dilatedCNNExperiment:
             num_classes=self.num_classes,
             num_batches=len(self.validation_loader),
             CV_k=self.CV_k,
+            classes=self.classes,
         )
 
         self.test_metrics_manager = MetricsManager(
@@ -110,6 +129,7 @@ class dilatedCNNExperiment:
             num_classes=self.num_classes,
             num_batches=len(self.test_loader),
             CV_k=self.CV_k,
+            classes=self.classes_test,
         )
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
@@ -122,19 +142,21 @@ class dilatedCNNExperiment:
 
         # Ensure y_trues and y_preds are numpy arrays for easy manipulation
         y_preds = y_preds.cpu().detach().numpy().astype(int)
-        y_probs = y_probs.cpu().detach().numpy()
+        y_probs = y_probs.cpu().detach().numpy().round(decimals=2)
 
         # Iterate over each sample
         for filename, y_pred, y_prob in zip(filenames, y_preds, y_probs):
-            # Create a DataFrame for the current sampleo
-
-            # header = [class_name for class_name in labels_map.values()]
-            df = pd.DataFrame(columns=labels_map)
-            df.loc[0] = y_pred
-            df.loc[1] = y_prob
-
-            # Save the DataFrame to a CSV file
-            df.to_csv(os.path.join(output_dir, f"{filename}.csv"), index=False)
+            # Create and open a CSV file for the current sample
+            with open(
+                os.path.join(output_dir, f"{filename}.csv"), mode="w", newline=""
+            ) as file:
+                writer = csv.writer(file)
+                # Write header
+                header = labels_map.tolist()
+                writer.writerow(header)
+                # Write y_pred and y_prob as separate rows
+                writer.writerow(y_pred)
+                writer.writerow(y_prob)
 
     def save_label(self, filenames):
         """
@@ -167,6 +189,68 @@ class dilatedCNNExperiment:
             os.symlink(original_path + ".hea", target_path + ".hea")
             os.symlink(original_path + ".mat", target_path + ".mat")
 
+    def get_device(self):
+        # Check if CUDA is available
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+            print("Using CUDA")
+        # Check if MPS is available
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+            print("Using METAL GPU")
+        # If neither CUDA nor MPS is available, use CPU
+        else:
+            device = torch.device("cpu")
+            print("Using CPU")
+
+        return device
+
+    def load_model(self):
+        model = CausalCNNEncoderOld(**self.network_params)
+        model = model.to(self.device)
+
+        # Load pretrained model weights
+        # TODO: Somehow doesn't properly work yet.
+        freeze_modules = ["network\.0\.network\.[01234].*"]
+        exclude_modules = None
+
+        print(f"Loading pretrained dilated CNN from {self.checkpoint_path}")
+
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        checkpoint_dict = checkpoint["model_state_dict"]
+        model_state_dict = model.state_dict()
+
+        self.epoch = checkpoint["epoch"]
+
+        # filter out unnecessary keys
+        # TODO: No sure what this is for i.e. why we just exlucde modules?
+        # Was this simply for experimentation?
+        if exclude_modules:
+            checkpoint_dict = {
+                k: v
+                for k, v in checkpoint_dict.items()
+                if k in model_state_dict
+                and not any(re.compile(p).match(k) for p in exclude_modules)
+            }
+
+        # overwrite entries in the existing state dict
+        model_state_dict.update(checkpoint_dict)
+
+        # load the new state dict into the model
+        model.load_state_dict(model_state_dict)
+
+        # freeze the network's model weights of the module names
+        # provided
+        if not freeze_modules:
+            return model
+
+        print("Freezing modules:", freeze_modules)
+        for k, param in model.named_parameters():
+            if any(re.compile(p).match(k) for p in freeze_modules):
+                param.requires_grad = False
+
+        return model
+
 
     def read_records(self, source_dir):
         records = []
@@ -178,51 +262,6 @@ class dilatedCNNExperiment:
                     records.append(record_path)
 
         return records
-
-    def setup_datasets(self):
-        # Read data
-        train_data = self.read_records(Config.TRAIN_DATA_DIR)
-        test_data = self.read_records(Config.TEST_DATA_DIR)
-        validation_data = self.read_records(Config.VAL_DATA_DIR)
-
-        print("Number of training samples:", len(train_data))
-        print("Number of test samples:", len(test_data))
-        print("Number of validation samples:", len(validation_data))
-
-        # Create datasets
-        train_dataset = Cinc2020Dataset(train_data)
-        test_dataset = Cinc2020Dataset(test_data)
-        validation_dataset = Cinc2020Dataset(validation_data)
-
-        train_loader = DataLoader(train_dataset, batch_size=128, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
-        validation_loader = DataLoader(
-            validation_dataset, batch_size=128, shuffle=False
-        )
-
-        train_freq = self.get_label_frequencies(train_loader) / len(train_loader)
-        test_freq = self.get_label_frequencies(test_loader) / len(test_loader)
-        validation_freq = self.get_label_frequencies(validation_loader) / len(
-            validation_loader
-        )
-
-        # Labels for each list
-        labels = ["Train freq.", "Test freq. ", "Valid freq."]
-
-        # Function to print the lists as a table with labels
-        print("\nLabel frequencies:")
-        for label, lst in zip(labels, [train_freq, test_freq, validation_freq]):
-            row = f"{label}: " + " ".join(f"{val:6.2f}" for val in lst)
-            print(row)
-        print("\n")
-
-        return (
-            train_loader,
-            validation_loader,
-            test_loader,
-        )
-
-
 
     def run_epochs(self):
         print("Storing training labels in output folder for later evlauation.")
@@ -250,8 +289,14 @@ class dilatedCNNExperiment:
                 # Reset predictions
                 self.predictions = []
 
+                # Reset labels
+                self.labels = []
+
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                     self.optimizer.zero_grad()
+
+                    # Store labels, this is needed to capture the order
+                    self.labels.extend(labels)
 
                     # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                     # So we have to convert it using .float()
@@ -261,7 +306,9 @@ class dilatedCNNExperiment:
                     predictions_logits = self.model(waveforms)
 
                     # We compute the loss on the logits, not the probabilities
-                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
+                    loss = self.loss_fn(
+                        predictions_logits, labels, self.model.training
+                    )
 
                     # Convert logits to probabilities and round to get predictions
                     predictions_probabilities = torch.sigmoid(predictions_logits)
@@ -288,14 +335,14 @@ class dilatedCNNExperiment:
                     # Update tqdm progress
                     pbar.update()
 
-                self.train_metrics_manager.compute_micro_averages(epoch)
+                self.train_metrics_manager.compute_macro_averages(epoch)
                 self.train_metrics_manager.compute_challenge_metric(
-                    self.predictions, self.train_dataset.y, epoch
+                    self.labels, self.predictions, epoch
                 )
-                self.train_metrics_manager.report_micro_averages(epoch)
+                self.train_metrics_manager.report_macro_averages(epoch)
 
                 checkpoint_dir = os.path.join(
-                    "models/dilated_CNN/checkpoints", f"fold_{self.CV_k}"
+                    Config.OUTPUT_DIR, f"fold_{self.CV_k}", "checkpoints"
                 )
                 if not os.path.exists(checkpoint_dir):
                     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -324,12 +371,18 @@ class dilatedCNNExperiment:
                 desc=f"\033[34mEvaluate validation on dilated CNN. Epoch {epoch +1}\033[0m",
                 total=len(self.validation_loader),
             ) as pbar:
+                # Reset predictions
+                self.predictions = []
+
+                # Reset labels store
+                self.labels = []
+
                 # Validation
                 with torch.no_grad():
-                    # Reset predictions
-                    self.predictions = []
-
                     for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                        # Store labels, this is needed to capture the order
+                        self.labels.extend(labels)
+
                         # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                         # So we have to convert it using .float()
                         waveforms = waveforms.float().to(self.device)
@@ -371,11 +424,11 @@ class dilatedCNNExperiment:
                         #     "validation",
                         # )
 
-                self.validation_metrics_manager.compute_micro_averages(epoch)
+                self.validation_metrics_manager.compute_macro_averages(epoch)
                 self.validation_metrics_manager.compute_challenge_metric(
-                    self.predictions, self.validation_dataset.y, epoch
+                    self.labels, self.predictions, epoch
                 )
-                self.validation_metrics_manager.report_micro_averages(epoch)
+                self.validation_metrics_manager.report_macro_averages(epoch)
 
             stop_early = self.validation_metrics_manager.check_early_stopping()
             if stop_early is True:
@@ -387,6 +440,8 @@ class dilatedCNNExperiment:
         self.evaluate_test_set()
 
     def evaluate_test_set(self):
+        labels_stored = []
+
         # TEST set evaluation
         self.model.eval()
         with tqdm(
@@ -394,11 +449,14 @@ class dilatedCNNExperiment:
             desc="\033[33mEvaluate test data on dilated CNN.\033[0m",
             total=len(self.test_loader),
         ) as pbar:
+            # Reset predictions
+            self.preds = []
+            self.preds_probs = []
+
+            self.labels = []
+
             # Test
             with torch.no_grad():
-                # Reset predictions
-                self.predictions = []
-
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                     # last_epoch = self.num_epochs - 1
 
@@ -410,13 +468,19 @@ class dilatedCNNExperiment:
                     predictions_logits = self.model(waveforms)
 
                     # We compute the loss on the logits, not the probabilities
-                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
+                    loss = self.loss_fn(
+                        predictions_logits, labels, self.model.training
+                    )
 
                     # Convert logits to probabilities and round to get predictions
                     predictions_probabilities = torch.sigmoid(predictions_logits)
+                    self.preds_probs.extend(
+                        predictions_probabilities.cpu().detach().tolist()
+                    )
                     predictions = torch.round(predictions_probabilities)
 
                     self.predictions.extend(predictions.cpu().detach().tolist())
+                    self.labels.extend(labels.cpu().detach().tolist())
 
                     self.test_metrics_manager.update_loss(
                         loss, epoch=0, batch_i=batch_i
@@ -432,11 +496,12 @@ class dilatedCNNExperiment:
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
                     # )
 
-            self.test_metrics_manager.compute_micro_averages(epoch=0)
+            self.test_metrics_manager.compute_macro_averages(epoch=0)
             self.test_metrics_manager.compute_challenge_metric(
-                self.predictions, self.test_dataset.y, epoch=0
+                self.labels, self.predictions, epoch=0
             )
-            self.test_metrics_manager.report_micro_averages(epoch=0, rewrite=True)
+
+            self.test_metrics_manager.report_macro_averages(epoch=0, rewrite=True)
 
         print(
             f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={self.CV_k}"
