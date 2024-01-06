@@ -1,4 +1,5 @@
 import torch
+import re
 from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment  # Adjust the import path based on your project structure
 from utils.ExperimentConfig import ExperimentConfig
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
@@ -48,7 +49,7 @@ def load_model(
 
     print("Freezing modules:", freeze_modules)
     for k, param in model.named_parameters():
-        if any(re.compile(p).match(k) for p in freeze_modules): #TODO: re.compile not recognized, import but form what ???
+        if any(re.compile(p).match(k) for p in freeze_modules):
             param.requires_grad = False
 
     return epoch, model
