@@ -209,16 +209,15 @@ if __name__ == "__main__":
         X = np.array(record_paths)
         y = np.array(labels_binary_encoded_list)
 
-        train_size = 0.1
-        test_size = 0.05
+        train_size = 0.8
+        test_size = 0.2
         sample_distribution_per_fold = [
             train_size,
             test_size,
-            1 - train_size - test_size,
         ]
 
         stratifier = IterativeStratification(
-            n_splits=3,
+            n_splits=2,
             order=2,
             sample_distribution_per_fold=sample_distribution_per_fold,
         )
