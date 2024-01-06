@@ -2,18 +2,28 @@ import torch
 import collections
 import tqdm
 import math
+from torch.utils.data import DataLoader
+from utils.MetricsManager import MetricsManager
+from experiments.SWAG.config import Config
+from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from utils.load_model import load_model
 from utils.setup_loss_fn import setup_loss_fn
 from utils.get_device import get_device
-from utils.MetricsManager import MetricsManager
-from experiments.SWAG.config import Config
 from utils.load_optimizer import load_optimizer
 
 
 class SWAGInference:
-    def __init__(self,
-                 checkpoint_path, #end: for dilatedCNN
-                ) -> None:
+    def __init__(
+            self,
+            checkpoint_path, #end: for dilatedCNN
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            X_test,
+            y_test,
+            CV_k, # todo: add cross-validation index to metrics logic
+            ) -> None:
 
         #Fix randomness
         torch.manual_seed(42)
@@ -25,10 +35,24 @@ class SWAGInference:
         self.deviation_matrix_max_rank = Config.DEVIATION_MATRIX_MAX_RANK
         self.bma_samples = Config.BMA_SAMPLES
 
+        ##
         # Load training data, test data
-        # TODO: test and train as in CNN split ???
-        self.train_loader = self.network.train_loader
-        self.test_loader = self.network.test_loader
+        ##
+        # Create datasets
+        self.train_dataset = Cinc2020Dataset(X_train, y_train, process=True, their=True)
+        self.test_dataset = Cinc2020Dataset(X_test, y_test, process=True, their=True)
+        self.validation_dataset = Cinc2020Dataset(
+            X_val, y_val, process=True, their=True
+        )
+
+        self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
+        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=True)
+        self.validation_loader = DataLoader(
+            self.validation_dataset, batch_size=128, shuffle=True
+        )
+
+        self.train_loader = self.train_loader
+        self.test_loader = self.test_loader
 
         ##
         # Load model
@@ -285,7 +309,7 @@ class SWAGInference:
             )
 
             # Load sampled params into model
-            # Modify weight value in-place; directly changing self.network
+            # Modify weight value in-place; directly changing
             param.data = sampled_param
 
 
