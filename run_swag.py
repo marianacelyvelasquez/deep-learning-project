@@ -8,7 +8,6 @@ from preprocess_dataset import get_record_paths_and_labels_binary_encoded_list
 from experiments.SWAG.SWAGInference import SWAGInference
 from experiments.SWAG.SWAG import SWAGExperiment  # Import the new class
 from experiments.SWAG.config import Config
-from utils.ExperimentConfig import ExperimentConfig
 
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.metrics._ranking")
 
@@ -49,13 +48,16 @@ if __name__ == "__main__":
         X_validation = X[validation_indices]
         y_validation = y[validation_indices]
 
-        # Experiment configuration
-        experiment_config = ExperimentConfig(X_train, y_train, X_validation, y_validation, X_test, y_test, k, checkpoint_path=None)
-
 
         # Create an instance of your SWAGExperiment class
         swag_experiment = SWAGExperiment(
-            SWAGInference(experiment_config)
+            SWAGInference(
+            X_train,
+            y_train,
+            X_validation,
+            y_validation,
+            X_test,
+            y_test,)
         )
 
         if Config.ONLY_EVAL_TEST_SET:
