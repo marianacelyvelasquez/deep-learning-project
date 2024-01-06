@@ -2,7 +2,6 @@ import torch
 import collections
 import tqdm
 import math
-import torch.nn as nn
 from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
 
 
@@ -88,7 +87,7 @@ class SWAGInference:
 
     def update_swag(self) -> None:
         # TODO: Check that this works (esp. the current_params thing)
-        current_params = {name: param.detach().clone() for name, param in self.network.model.named_parameters()} 
+        current_params = {name: param.detach().clone() for name, param in self.model.named_parameters()} 
 
         # Update swag diagonal
         for name, param in current_params:
@@ -117,11 +116,11 @@ class SWAGInference:
         lr_scheduler = self.lr_scheduler
 
         self.theta = {name: param.detach().clone()
-                      for name, param in self.network.model.named_parameters()}
+                      for name, param in self.model.named_parameters()}
         self.theta_squared = {name: param.detach().clone(
-        )**2 for name, param in self.network.model.named_parameters()}
+        )**2 for name, param in self.model.named_parameters()}
 
-        self.network.model.train()
+        self.model.train()
         with tqdm.trange(self.swag_epochs, desc="Running gradient descent for SWA") as pbar:
             pbar_dict = {}
             for epoch in pbar:
@@ -144,7 +143,7 @@ class SWAGInference:
 
                     optimizer.zero_grad()
                     pred_ys = self.network(batch_xs)
-                    #BinaryFocalLoss takes as input prediction_logits, labels, self.network.model.training according to dilatedCNN.py implementation
+                    #BinaryFocalLoss takes as input prediction_logits, labels, self.model.training according to dilatedCNN.py implementation
                     batch_loss = loss(input=pred_ys, target=batch_ys)
                     batch_loss.backward() # MARI: FIX THIS
                     optimizer.step()
@@ -190,7 +189,7 @@ class SWAGInference:
         # QUESTION: should `loader` be an input so one cass pass in `self.test_loader` vs `self.train_loader` ?
 
         with torch.no_grad():
-            self.network.model.eval()
+            self.model.eval()
 
             # Perform Bayesian model averaging:
             # Instead of sampling self.bma_samples networks (using self.sample_parameters())
@@ -231,7 +230,7 @@ class SWAGInference:
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
         # Loop over each layer in the model (self.model.named_parameters())
-        for name, param in self.network.model.named_parameters():
+        for name, param in self.model.named_parameters():
             # SWAG-diagonal part
             # Draw vectors z_1 and z_2 almost randomly
             z_1 = torch.normal(mean=0.0, std=1.0, size=param.size()) # random sample diagonal
@@ -276,7 +275,7 @@ class SWAGInference:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
         return {
             name: torch.zeros_like(param, requires_grad=False)
-            for name, param in self.network.model.named_parameters()
+            for name, param in self.model.named_parameters()
         }
 
     def _predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
@@ -305,7 +304,7 @@ class SWAGInference:
         """
 
         old_momentum_parameters = dict()
-        for module in self.network.model.modules():
+        for module in self.model.modules():
             # Only need to handle batchnorm modules
             if not isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
                 continue
@@ -328,10 +327,10 @@ class SWAGInference:
             drop_last=False,
         )
 
-        self.network.model.train()
+        self.model.train()
         for (batch_xs,) in loader:
             self.network(batch_xs)
-        self.network.model.eval()
+        self.model.eval()
 
         # Restore old `momentum` hyperparameter values
         for module, momentum in old_momentum_parameters.items():
