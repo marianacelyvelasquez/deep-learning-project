@@ -1,4 +1,5 @@
 import warnings
+import sys
 import os
 import torch
 import numpy as np
@@ -28,6 +29,8 @@ if __name__ == "__main__":
         Config.TEST_DATA_DIR
     )
 
+    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else None
+
     X = np.array(record_paths_train)
     y = np.array(labels_train)
 
@@ -52,12 +55,15 @@ if __name__ == "__main__":
         # Create an instance of your SWAGExperiment class
         swag_experiment = SWAGExperiment(
             SWAGInference(
+            checkpoint_path,
             X_train,
             y_train,
             X_validation,
             y_validation,
             X_test,
-            y_test,)
+            y_test,
+            CV_k=k,
+            )
         )
 
         if Config.ONLY_EVAL_TEST_SET:
