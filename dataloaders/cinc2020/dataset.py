@@ -51,7 +51,7 @@ class Cinc2020Dataset(Dataset):
 
     def __getitem__(self, idx):
         if self.process is True:
-            ecg_signal = self.process_record(self.records[idx], their=self.their)
+            ecg_signal = self.process_record(self.records[idx])
         else:
             record = wfdb.rdrecord(self.records[idx])
 
