@@ -60,8 +60,7 @@ class SWAGInference:
         # Define optimizer and learning rate scheduler
         self.optimizer =  self.network.optimizer
 
-        cycle_len = 5  # You can adjust the cycle length
-        # NOTE: could add a step_size_down parameter (set it to cycle_len) so the cyclic pattern is not just increasing
+        # NOTE: could add a step_size_down parameter (set it to cycle_len=5) so the cyclic pattern is not just increasing
         self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=self.optimizer, step_size=5, gamma=1 #testing variables – no strings attached
             )
