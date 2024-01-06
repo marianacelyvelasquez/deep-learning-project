@@ -7,14 +7,10 @@ import numpy.typing as npt
 import csv
 import torch
 
-from utils.loss import BinaryFocalLoss
-import utils.evaluate_12ECG_score as cinc_eval
-
 from experiments.dilated_CNN.config import Config
 
 from dataloaders.cinc2020.datasetThePaperCode import Cinc2020Dataset
 from torch.utils.data import DataLoader
-from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 from utils.MetricsManager import MetricsManager
 from dataloaders.cinc2020.common import labels_map
 from utils.load_optimizer import load_optimizer
@@ -99,7 +95,7 @@ class dilatedCNNExperiment:
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
         self.max_num_epochs = Config.MAX_NUM_EPOCHS
-        self.epoch = None
+        self.epoch = 0
 
         self.num_classes = 24
 
@@ -204,53 +200,6 @@ class dilatedCNNExperiment:
             print("Using CPU")
 
         return device
-
-    def load_model(self):
-        model = CausalCNNEncoderOld(**self.network_params)
-        model = model.to(self.device)
-
-        # Load pretrained model weights
-        # TODO: Somehow doesn't properly work yet.
-        freeze_modules = ["network\.0\.network\.[01234].*"]
-        exclude_modules = None
-
-        print(f"Loading pretrained dilated CNN from {self.checkpoint_path}")
-
-        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
-        checkpoint_dict = checkpoint["model_state_dict"]
-        model_state_dict = model.state_dict()
-
-        self.epoch = checkpoint["epoch"]
-
-        # filter out unnecessary keys
-        # TODO: No sure what this is for i.e. why we just exlucde modules?
-        # Was this simply for experimentation?
-        if exclude_modules:
-            checkpoint_dict = {
-                k: v
-                for k, v in checkpoint_dict.items()
-                if k in model_state_dict
-                and not any(re.compile(p).match(k) for p in exclude_modules)
-            }
-
-        # overwrite entries in the existing state dict
-        model_state_dict.update(checkpoint_dict)
-
-        # load the new state dict into the model
-        model.load_state_dict(model_state_dict)
-
-        # freeze the network's model weights of the module names
-        # provided
-        if not freeze_modules:
-            return model
-
-        print("Freezing modules:", freeze_modules)
-        for k, param in model.named_parameters():
-            if any(re.compile(p).match(k) for p in freeze_modules):
-                param.requires_grad = False
-
-        return model
-
 
     def read_records(self, source_dir):
         records = []
