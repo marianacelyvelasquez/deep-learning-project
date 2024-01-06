@@ -88,7 +88,7 @@ class Cinc2020Dataset(Dataset):
         # If no suitable segment is found, return the initial N elements
         return ecg_signal[:N]
 
-    def process_record(self, record_path, their=False):
+    def process_record(self, record_path):
         # Read a ECG measurement (record) from the CINC2020 dataset.
         # It read the .mat and .hea file and creates a record object out of it.
         # Note: We do not have an Annotations object. Annotation objects can be used
@@ -122,7 +122,7 @@ class Cinc2020Dataset(Dataset):
 
             # Resample to target frequency if necessary
             if fs != fs_target:
-                if their is not True:
+                if self.their is False:
                     x_tmp, _ = wfdb.processing.resample_sig(x_tmp, fs, fs_target)
                 else:
                     length = len(x_tmp)
