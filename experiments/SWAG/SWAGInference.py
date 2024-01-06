@@ -2,7 +2,7 @@ import torch
 import collections
 import tqdm
 import math
-from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
+from utils.load_model import load_model
 
 
 class SWAGInference:
@@ -32,7 +32,8 @@ class SWAGInference:
         self.bma_samples = bma_samples
 
         #TODO: Network - DOES THIS MAKE SENSE?
-        self.network = dilatedCNNExperiment(
+        self.network = load_model(
+            checkpoint_path,
             X_train,
             y_train,
             X_val,
@@ -40,7 +41,6 @@ class SWAGInference:
             X_test,
             y_test,
             CV_k,
-            checkpoint_path=checkpoint_path,
         )
 
         # Load training data, test data
