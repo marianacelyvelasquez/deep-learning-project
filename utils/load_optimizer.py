@@ -1,5 +1,4 @@
 import torch
-from experiments.dilated_CNN.dilatedCNN import dilatedCNNExperiment
 import torch.optim as optim
 
 def load_optimizer(model, device, checkpoint_path, load_optimizer: bool, learning_rate=0.001):
