@@ -6,12 +6,13 @@ from skmultilearn.model_selection import IterativeStratification
 
 from preprocess_dataset import get_record_paths_and_labels_binary_encoded_list
 from experiments.SWAG.SWAGInference import SWAGInference
+from experiments.SWAG.SWAG import SWAGExperiment  # Import the new class
 from experiments.SWAG.config import Config
 
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.metrics._ranking")
 
 if __name__ == "__main__":
-    print("Running SWAGInference experiment.")
+    print("Running SWAGExperiment.")
 
     if os.path.isdir(Config.OUTPUT_DIR):
         print(
@@ -47,22 +48,24 @@ if __name__ == "__main__":
         X_validation = X[validation_indices]
         y_validation = y[validation_indices]
 
-        # Create an instance of your SWAGInference class
-        swag_inference = SWAGInference(
-            X_train,
-            y_train,
-            X_validation,
-            y_validation,
-            X_test,
-            y_test,
-            k + 1,
-            checkpoint_path=None,  # Set the checkpoint path if needed
+        # Create an instance of your SWAGExperiment class
+        swag_experiment = SWAGExperiment(
+            SWAGInference(
+                X_train,
+                y_train,
+                X_validation,
+                y_validation,
+                X_test,
+                y_test,
+                k + 1,
+                checkpoint_path=None,  # Set the checkpoint path if needed
+            )
         )
 
         if Config.ONLY_EVAL_TEST_SET:
             print("Only evaluating test set.")
-            # swag_inference.evaluate_test_set() # TODO: Implement this
+            # swag_experiment.evaluate_test_set() # TODO: Implement this
             break
         else:
             print("Running SWAG epochs.")
-            swag_inference.fit_swag()
+            swag_experiment.run()
