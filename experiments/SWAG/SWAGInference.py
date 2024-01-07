@@ -151,14 +151,13 @@ class SWAGInference:
 
 
     def update_swag(self) -> None:
-        # TODO: Check that this works (esp. the current_params thing)
         current_params = {name: param.detach().clone() for name, param in self.model.named_parameters()} 
         # print dictionary current_params:
-        print(f"Current params format: {format(current_params)}, themselves: {current_params}")
+        print(f"Current params items length: {len(current_params.items())}")
 
         # Update swag diagonal
-        for name, param in current_params:
-            print(f"Updating {name} with param {param}")
+        for name, param in current_params.items():
+            print(f"Updating {name} with param of shape {param.shape}")
             self.theta[name] = (self.n*self.theta[name] + param)/(self.n + 1)
             self.theta_squared[name] = (
                 self.n*self.theta_squared[name] + param**2)/(self.n + 1)
