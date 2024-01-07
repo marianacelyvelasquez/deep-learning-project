@@ -352,8 +352,9 @@ class SWAGInference:
     def _predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
         # TODO: Use more sophisticated prediction method than softmax
         predictions = []
-        for (batch_xs,) in loader: #PROBLEMATIC
-            predictions.append(self.model(batch_xs))
+        for (_, waveforms, _) in loader: #PROBLEMATIC
+            waveforms = waveforms.float().to(self.device)
+            predictions.append(self.model(waveforms))
 
         predictions = torch.cat(predictions)
         return torch.softmax(predictions, dim=-1)
@@ -397,6 +398,7 @@ class SWAGInference:
 
         self.model.train()
         for (_, waveforms, _) in loader: #PROBLEMATIC
+            waveforms = waveforms.float().to(self.device)
             self.model(waveforms)
         self.model.eval()
 
