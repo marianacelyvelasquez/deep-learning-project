@@ -132,6 +132,13 @@ class Processor:
                 base_date=record.base_date,
                 base_time=record.base_time,
                 fmt=record.fmt,
+                adc_gain=record.adc_gain,
+                baseline=record.baseline,
+                adc_res=record.adc_res,
+                adc_zero=record.adc_zero,
+                init_value=record.init_value,
+                sig_len=record.sig_len,
+                base_counter=record.base_counter,
             )
 
             # MARI RIC: Rest of the code for processing labels remains unchanged

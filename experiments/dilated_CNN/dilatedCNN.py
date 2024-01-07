@@ -26,7 +26,7 @@ class dilatedCNNExperiment:
         X_test,
         y_test,
         classes,
-        clases_test,
+        classes_test,
         CV_k,
         checkpoint_path=None,
     ):
@@ -53,7 +53,7 @@ class dilatedCNNExperiment:
         self.device = self.get_device()
 
         self.classes = classes
-        self.classes_test = clases_test
+        self.classes_test = classes_test
 
         # TODO: Currently we have one PyTorch Dataset in which we read all the d ata
         # and then we split it. Change it to first read all the data, then split it using
@@ -79,7 +79,7 @@ class dilatedCNNExperiment:
             X_val, y_val, classes=classes, root_dir=Config.TRAIN_DATA_DIR, name="val"
         )
         self.test_dataset = Cinc2020Dataset(
-            X_test, y_test, classes=classes, root_dir=Config.TEST_DATA_DIR, name="test"
+            X_test, y_test, classes=classes_test, root_dir=Config.TEST_DATA_DIR, name="test"
         )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
@@ -340,7 +340,7 @@ class dilatedCNNExperiment:
                         predictions_logits = self.model(waveforms)
 
                         # We compute the loss on the logits, not the probabilities
-                        loss = self.loss_fn(
+                        loss = self.train_loss_fn(
                             predictions_logits, labels, self.model.training
                         )
 
