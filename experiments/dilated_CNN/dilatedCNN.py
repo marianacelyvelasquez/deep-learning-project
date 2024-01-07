@@ -168,28 +168,6 @@ class dilatedCNNExperiment:
             os.symlink(original_path + ".mat", target_path + ".mat")
 
 
-    def load_optimizer(self):
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
-
-        if Config.LOAD_OPTIMIZER is False and self.checkpoint_path is None:
-            return optimizer
-
-        if Config.LOAD_OPTIMIZER is False and self.checkpoint_path is True:
-            print("Not loading optimizer state dict because LOAD_OPTIMIZER is False")
-            return optimizer
-
-        if Config.LOAD_OPTIMIZER is True and self.checkpoint_path is None:
-            print("Not loading optimizer state dict because checkpoint_path is None")
-            return optimizer
-
-        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
-
-        print(f"Loading optimizer state dict from {self.checkpoint_path}")
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-        return optimizer
-
-
     def read_records(self, source_dir):
         records = []
         for dirpath, dirnames, filenames in os.walk(source_dir):

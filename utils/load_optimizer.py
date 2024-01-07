@@ -2,7 +2,8 @@ import torch
 import torch.optim as optim
 
 def load_optimizer(model, device, checkpoint_path, load_optimizer: bool, learning_rate=0.001):
-    optimizer = torch.optim.Adam(model.parameters(), learning_rate)
+    print(f"Loading optimizer with learning rate {learning_rate} and checkpoint_path {checkpoint_path}")
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     if load_optimizer is False and checkpoint_path is None:
         return optimizer
