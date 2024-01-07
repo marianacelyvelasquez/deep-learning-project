@@ -313,14 +313,17 @@ class SWAGInference:
             ## Diagonal part
 
             # Compute diagonal covariance matrix using mean + std * z_1
+            z_1 = z_1.to(current_mean.device) # move z_1 to same device as current_mean
             sampled_param = current_mean + (1.0 / math.sqrt(2.0)) * current_std * z_1
 
             ## Full SWAG part
 
             # Compute full covariance matrix by doing D * z_2
+            z_2 = z_2.to(current_mean.device) # move z_2 to (on my local env) mps:0 device
             sampled_param += (1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)) * torch.sum(
-                D_i[name] * z_2 for D_i in self.weight_copies
+                torch.stack([D_i[name] * z_2 for D_i in self.weight_copies])
             )
+
 
             # Load sampled params into model
             # Modify weight value in-place; directly changing
