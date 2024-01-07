@@ -88,7 +88,8 @@ class Cinc2020Dataset(Dataset):
         # If no suitable segment is found, return the initial N elements
         return ecg_signal[:N]
 
-    def process_record(self, record_path):
+    @staticmethod
+    def process_record(record_path, their=False):
         # Read a ECG measurement (record) from the CINC2020 dataset.
         # It read the .mat and .hea file and creates a record object out of it.
         # Note: We do not have an Annotations object. Annotation objects can be used
@@ -109,6 +110,10 @@ class Cinc2020Dataset(Dataset):
         lx = np.zeros((ecg_signal.shape[1], N))  # Allocate memory
         # print(f"ecg_signal shape: {ecg_signal.shape} \n\n")
 
+        print(
+            f"fs={record.fs}, fs_target={fs_target}, N={len(record.p_signal[:,0])} \n\n"
+        )
+
         # We loop over all 12 leads/channels and resample them to the target frequency.
         # WFDB has a function for that but assumes there's an annotation object,
         # which we don't have. So we have to do it manually.
@@ -122,9 +127,11 @@ class Cinc2020Dataset(Dataset):
 
             # Resample to target frequency if necessary
             if fs != fs_target:
-                if self.their is False:
+                if their is False:
+                    print("Our resampling")
                     x_tmp, _ = wfdb.processing.resample_sig(x_tmp, fs, fs_target)
                 else:
+                    print("Their resampling")
                     length = len(x_tmp)
                     x = np.linspace(0, length / fs, num=length)
                     f = interpolate.interp1d(x, x_tmp, axis=0)
@@ -147,6 +154,8 @@ class Cinc2020Dataset(Dataset):
                 x_tmp = np.pad(x_tmp, (0, N - len(x_tmp)))
             x_tmp = np.resize(x_tmp, (N,))
             lx[chan] = x_tmp
+
+        assert lx.shape == (12, 5000), "A signal has wrong shape."
 
         return lx
 
