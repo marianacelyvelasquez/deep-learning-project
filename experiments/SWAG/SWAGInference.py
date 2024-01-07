@@ -1,7 +1,10 @@
 import torch
 import collections
-import tqdm
+from tqdm import tqdm
 import math
+import os
+import numpy as np
+import pandas as pd
 from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
 from experiments.SWAG.config import Config
@@ -10,6 +13,8 @@ from utils.load_model import load_model
 from utils.setup_loss_fn import setup_loss_fn
 from utils.get_device import get_device
 from utils.load_optimizer import load_optimizer
+from dataloaders.cinc2020.common import labels_map
+
 
 
 class SWAGInference:
@@ -115,7 +120,6 @@ class SWAGInference:
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
         self.max_num_epochs = Config.MAX_NUM_EPOCHS
-        self.epoch = None
 
         self.num_classes = 24
 
@@ -149,6 +153,8 @@ class SWAGInference:
     def update_swag(self) -> None:
         # TODO: Check that this works (esp. the current_params thing)
         current_params = {name: param.detach().clone() for name, param in self.model.named_parameters()} 
+        # print dictionary current_params:
+        print(f"Current params format: {format(current_params)}, themselves: {current_params}")
 
         # Update swag diagonal
         for name, param in current_params:
@@ -164,17 +170,14 @@ class SWAGInference:
         self.weight_copies.append(theta_difference)
 
     def fit_swag(self) -> None:
-        # TODO: MARI review the whole logic in details and test
         # What this should do: init theta and theta_squared
         # set network in training mode
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
-        # TODO: review these variables defs
-        loader = self.train_loader
         loss = self.loss_fn
-        optimizer = self.optimizer
         lr_scheduler = self.lr_scheduler
+        epoch = self.epoch
 
         self.theta = {name: param.detach().clone()
                       for name, param in self.model.named_parameters()}
@@ -182,53 +185,58 @@ class SWAGInference:
         )**2 for name, param in self.model.named_parameters()}
 
         self.model.train()
-        with tqdm.trange(self.swag_epochs, desc="Running gradient descent for SWA") as pbar:
-            pbar_dict = {}
-            for epoch in pbar:
-                average_loss = 0.0
-                average_accuracy = 0.0
-                num_samples_processed = 0
-                print("\n about to start for loop on loader \n")
-                # items in loader are tuples: first elt is a list of strings like 'A0194m', 
-                # the second element is a tuple of two tensors.
-                # The tensors correspond to your input data (batch_xs) and target labels (batch_ys)
-                for item in loader:
-                    names = item[0]
-                    batch_data = item[1]  # batch_data.shape: torch.Size([110, 12, 5000])
+        with tqdm(
+            self.train_loader,
+            desc=f"\033[32mTraining dilated CNN. Epoch {epoch + 1}/{self.max_num_epochs}\033[0m",
+            total=len(self.train_loader),
+        ) as pbar:
+                pbar_dict = {}
+                # Reset predictions
+                self.predictions = []
 
-                    # If batch_data is a tensor containing both input data and target labels, you might need to further split it
-                    batch_xs = batch_data[:, :-1, :]  # Assuming the last dimension represents features
-                    batch_ys = batch_data[:, -1, :]   # Assuming the last dimension represents labels
-                    print(f"First name of loader item: {names[0]}")
-                    print(f"batch_data.shape: {batch_data.shape}, batch_xs.shape: {batch_xs.shape}, batch_ys.shape: {batch_ys.shape}\n")
+                for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                    self.optimizer.zero_grad()
 
-                    optimizer.zero_grad()
-                    pred_ys = self.model(batch_xs)
-                    #BinaryFocalLoss takes as input prediction_logits, labels, self.model.training according to dilatedCNN.py implementation
-                    batch_loss = loss(input=pred_ys, target=batch_ys)
-                    batch_loss.backward() # MARI: FIX THIS
-                    optimizer.step()
+                    # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
+                    # So we have to convert it using .float()
+                    waveforms = waveforms.float().to(self.device)
+                    labels = labels.float().to(self.device)
+
+                    predictions_logits = self.model(waveforms)
+                    assert predictions_logits.shape == labels.shape
+
+                    # We compute the loss on the logits, not the probabilities
+                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
+
+                    # Convert logits to probabilities and round to get predictions
+                    predictions_probabilities = torch.sigmoid(predictions_logits)
+                    predictions = torch.round(predictions_probabilities)
+
+                    self.predictions.extend(predictions.cpu().detach().tolist())
+
+                    self.save_prediction(
+                        filenames, predictions, predictions_probabilities, "train"
+                    )
+
+                    loss.backward() #question: why is this .backward fn not recognized
+                    self.optimizer.step()
+
                     pbar_dict["lr"] = lr_scheduler.get_last_lr()[0]
                     lr_scheduler.step()
-                    
-                    
-                    # Most of this :point_down: is updating metrics
-                    # Calculate cumulative average training loss and accuracy
-                    #NOTE: batch_loss.item() should be replaced if working in a multi-GPU environment (?) (use torch.Tensor.cpu().numpy())
-                    average_loss = (batch_xs.size(0) * batch_loss.item() + num_samples_processed * average_loss) / (
-                        num_samples_processed + batch_xs.size(0)
+ 
+                    ##
+                    # Metrics are updated once per batch (batch size here by default is 128)
+                    ##
+                    self.train_metrics_manager.update_confusion_matrix(
+                        labels, predictions, epoch
                     )
-                    average_accuracy = (
-                        torch.sum(pred_ys.argmax(dim=-1) == batch_ys).item()
-                        + num_samples_processed * average_accuracy
-                    ) / (num_samples_processed + batch_xs.size(0))
-                    num_samples_processed += batch_xs.size(0)
-                    pbar_dict["avg. epoch loss"] = average_loss
-                    pbar_dict["avg. epoch accuracy"] = average_accuracy
-                    pbar.set_postfix(pbar_dict)
-                # End of just updating metrics
+                    self.train_metrics_manager.update_loss(loss, epoch, batch_i)
 
-                # Implement periodic SWAG updates using the attributes defined in __init__
+                    # Update tqdm postfix with current loss and accuracy
+                    pbar.set_postfix(loss=f"\n{loss.item():.3f}")
+
+                    ## End of just updating metrics
+
                 if epoch % self.swag_update_freq == 0:
                     self.n = epoch // self.swag_update_freq + 1
                     self.update_swag()
@@ -439,3 +447,28 @@ class SWAGInference:
                     # self.save_label(
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
                     # )
+
+
+    def save_prediction(self, filenames, y_preds, y_probs, subdir):
+        output_dir = os.path.join(
+            Config.OUTPUT_DIR, f"fold_{self.CV_k}", "predictions", subdir
+        )
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Ensure y_trues and y_preds are numpy arrays for easy manipulation
+        y_preds = y_preds.cpu().detach().numpy().astype(int)
+        y_probs = y_probs.cpu().detach().numpy()
+
+        # Iterate over each sample
+        for filename, y_pred, y_prob in zip(filenames, y_preds, y_probs):
+            # Create a DataFrame for the current sampleo
+
+            # header = [class_name for class_name in labels_map.values()]
+            df = pd.DataFrame(columns=labels_map)
+            df.loc[0] = y_pred
+            df.loc[1] = y_prob
+
+            # Save the DataFrame to a CSV file
+            df.to_csv(os.path.join(output_dir, f"{filename}.csv"), index=False)
