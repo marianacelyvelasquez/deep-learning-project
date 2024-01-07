@@ -427,7 +427,7 @@ class SWAGInference:
                     predictions_logits = self.model(waveforms)
 
                     # Similar to the original model, compute the loss on the logits
-                    loss = self.loss_fn(predictions_logits, labels)
+                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
 
                     predictions_probabilities = torch.sigmoid(predictions_logits)
                     predictions = torch.round(predictions_probabilities)
