@@ -22,7 +22,7 @@ class SWAGInference:
             y_val,
             X_test,
             y_test,
-            CV_k, # todo: add cross-validation index to metrics logic
+            CV_k,
             ) -> None:
 
         #Fix randomness
@@ -66,13 +66,18 @@ class SWAGInference:
             "kernel_size": 3,
         }
         self.device = get_device()
-        self.checkpoint_path = checkpoint_path
+
+        # Load pretrained dilated CNN
+        if checkpoint_path is None:
+            pretrained_cnn_weights = "models/dilated_CNN/pretrained_weights.pt"
+            self.checkpoint_path = pretrained_cnn_weights
+        else:
+            self.checkpoint_path = checkpoint_path
 
         self.epoch, self.model = load_model(self.network_params, self.device, self.checkpoint_path)
 
-        # TODO: understand what to load when Load optimizer - network and swag_learning_rate
         # Define optimizer and learning rate scheduler
-        self.optimizer = load_optimizer(self.model, self.device, checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=self.swag_learning_rate)
+        self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=self.swag_learning_rate)
 
 
         # NOTE: could add a step_size_down parameter (set it to cycle_len=5) so the cyclic pattern is not just increasing
@@ -105,6 +110,8 @@ class SWAGInference:
         ##
         # Metrics
         ##
+
+        self.CV_k = CV_k
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
         self.max_num_epochs = Config.MAX_NUM_EPOCHS
@@ -193,10 +200,10 @@ class SWAGInference:
                     batch_xs = batch_data[:, :-1, :]  # Assuming the last dimension represents features
                     batch_ys = batch_data[:, -1, :]   # Assuming the last dimension represents labels
                     print(f"First name of loader item: {names[0]}")
-                    print(f"batch_data.shape: {batch_data.shape}")
+                    print(f"batch_data.shape: {batch_data.shape}, batch_xs.shape: {batch_xs.shape}, batch_ys.shape: {batch_ys.shape}\n")
 
                     optimizer.zero_grad()
-                    pred_ys = self.network(batch_xs)
+                    pred_ys = self.model(batch_xs)
                     #BinaryFocalLoss takes as input prediction_logits, labels, self.model.training according to dilatedCNN.py implementation
                     batch_loss = loss(input=pred_ys, target=batch_ys)
                     batch_loss.backward() # MARI: FIX THIS
@@ -336,15 +343,13 @@ class SWAGInference:
         # TODO: Use more sophisticated prediction method than softmax
         predictions = []
         for (batch_xs,) in loader:
-            predictions.append(self.network(batch_xs))
+            predictions.append(self.model(batch_xs))
 
         predictions = torch.cat(predictions)
         return torch.softmax(predictions, dim=-1)
 
 
     def _update_batchnorm(self) -> None:
-        # TODO: Helper method used to update batchnorm.
-        # Understand why we actually have to do that
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
         They provide this method for convenience.
@@ -383,7 +388,7 @@ class SWAGInference:
 
         self.model.train()
         for (batch_xs,) in loader:
-            self.network(batch_xs)
+            self.model(batch_xs)
         self.model.eval()
 
         # Restore old `momentum` hyperparameter values
