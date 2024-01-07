@@ -352,7 +352,7 @@ class SWAGInference:
     def _predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
         # TODO: Use more sophisticated prediction method than softmax
         predictions = []
-        for (batch_xs,) in loader:
+        for (batch_xs,) in loader: #PROBLEMATIC
             predictions.append(self.model(batch_xs))
 
         predictions = torch.cat(predictions)
@@ -362,7 +362,6 @@ class SWAGInference:
     def _update_batchnorm(self) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
-        They provide this method for convenience.
         See the SWAG paper for why this is required.
 
         Batch normalization usually uses an exponential moving average, controlled by the `momentum` parameter.
@@ -397,8 +396,8 @@ class SWAGInference:
         )
 
         self.model.train()
-        for (batch_xs,) in loader:
-            self.model(batch_xs)
+        for (_, waveforms, _) in loader: #PROBLEMATIC
+            self.model(waveforms)
         self.model.eval()
 
         # Restore old `momentum` hyperparameter values
