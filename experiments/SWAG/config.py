@@ -11,8 +11,8 @@ class Config:
     TRAIN_DATA_DIR = "data/cinc2020_processed/training"
     TEST_DATA_DIR = "data/cinc2020_processed/testing"
     LABEL_24 = "data/label_cinc2020_top24.csv"
-    SWAG_EPOCHS = 30,
-    SWAG_UPDATE_FREQ = 1,
-    SWAG_LEARNING_RATE = 0.001,
-    DEVIATION_MATRIX_MAX_RANK = 15,
+    SWAG_EPOCHS = 30
+    SWAG_UPDATE_FREQ = 1
+    SWAG_LEARNING_RATE = 0.001
+    DEVIATION_MATRIX_MAX_RANK = 15
     BMA_SAMPLES = 30
