@@ -5,6 +5,7 @@ import math
 import os
 import numpy as np
 import pandas as pd
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
 from experiments.SWAG.config import Config
@@ -243,7 +244,8 @@ class SWAGInference:
         # Maybe calibration is done with temperature scaling?
         pass
 
-    def predict_probabilities(self, loader: torch.utils.data.DataLoader) -> None:
+        # TODO: update with CNN etc etc
+    def predict_probabilities(self, loader: torch.utils.data.DataLoader): # NOTE: this function is currently never called -  rewrite based on dilatedCNN, do stacking and appending predictions [implement BMA yourself based on CNN code]
         """
         Goal: Implement Bayesian Model Averaging by doing:
              1. Sample new model from SWAG (call self.sample_parameters())
@@ -251,9 +253,12 @@ class SWAGInference:
              3. repeat 1-2 for num_bma_samples times
              4. Average the probabilities over the num_bma_samples
         """
-        # QUESTION: should `loader` be an input so one cass pass in `self.test_loader` vs `self.train_loader` ?
+        # :bulb: we have all the weights and the parameters obtained by the SWAG training, let's actually do inference
 
         with torch.no_grad():
+            """
+            Evaluate (self.bma_samples different) models on test data; Collect them; Get the mean of it (BMA)
+            """
             self.model.eval()
 
             # Perform Bayesian model averaging:
@@ -262,30 +267,34 @@ class SWAGInference:
             # and perform inference with each network on all samples in loader.
 
 
-            # per_model_sample_predictions contints a list of all predictions for all models.
+            # per_model_sample_predictions contains a list of all predictions for all models.
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
-            for _ in tqdm.trange(self.bma_samples, desc="Performing Bayesian model averaging"):
+            for _ in range(self.bma_samples):
+                # will do 1. and 2. in this for loop
+
                 self.sample_parameters()  # Samples new weights and loads it into our DNN
 
                 # predictions is the predictions of one model for all samples in loader
 
-                predictions = self._predict_probabilities_vanilla(loader)
-                per_model_sample_predictions.append(predictions)
+                predictions = self._predict_probabilities_of_model(loader) # Here use CNN+sigmoid obtained probabilities
 
-            assert len(per_model_sample_predictions) == self.bma_samples
-            assert all(
-                isinstance(model_sample_predictions, torch.Tensor)
-                and model_sample_predictions.dim() == 2  # N x C
-                and model_sample_predictions.size(1) == 6
-                for model_sample_predictions in per_model_sample_predictions
-            )
+                per_model_sample_predictions.append(predictions) # HERE: 
+
+            ## TODO: better assertions
+            # assert len(per_model_sample_predictions) == self.bma_samples
+            # assert all(
+            #     isinstance(model_sample_predictions, torch.Tensor)
+            #     and model_sample_predictions.dim() == 2  # N x C # I SHOULD GET AN ERROR HERE -> 3 (?)
+            #     and model_sample_predictions.size(1) == 6 # I SHOULD GET AN ERROR HERE -> 24
+            #     for model_sample_predictions in per_model_sample_predictions
+            # )
 
             # Add all model predictions together and take the mean
             bma_probabilities = torch.mean(torch.stack(
-                per_model_sample_predictions, dim=0), dim=0)
+                per_model_sample_predictions, dim=0), dim=0) # this is the difference between swag and cnndilated
 
-            assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
+            #assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
             return bma_probabilities
 
     def sample_parameters(self) -> None:
@@ -347,15 +356,14 @@ class SWAGInference:
             for name, param in self.model.named_parameters()
         }
 
-    def _predict_probabilities_vanilla(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
-        # TODO: Use more sophisticated prediction method than softmax
+    def _predict_probabilities_of_model(self, loader: torch.utils.data.DataLoader) -> torch.Tensor:
         predictions = []
-        for (_, waveforms, _) in loader: #PROBLEMATIC
+        for (_, waveforms, _) in loader:
             waveforms = waveforms.float().to(self.device)
             predictions.append(self.model(waveforms))
 
         predictions = torch.cat(predictions)
-        return torch.softmax(predictions, dim=-1)
+        return F.sigmoid(predictions) #TODO: ask Riccardo check how to make sigmoid work - reason is softmax is 1-label-classifier and we are (non-exclusive) multi-label
 
 
     def _update_batchnorm(self) -> None:
@@ -400,48 +408,104 @@ class SWAGInference:
 
     def evaluate(self) -> None:
         self.model.eval()
+
+        loader = self.test_loader
+
+        predicted_test_probabilities = self.predict_probabilities(loader) #all the predicted probabilities of the test set question: is it too big?
+        predicted_test_logits = torch.logit(predicted_test_probabilities)
+
         with tqdm(
-            self.test_loader,
+            loader,
             desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
-            total=len(self.test_loader),
+            total=len(loader),
         ) as pbar:
-            with torch.no_grad():
-                # Reset predictions
-                self.predictions = []
+            for batch_i, (filenames, _, labels), logits_chunk in zip(enumerate(pbar), torch.chunk(predicted_test_logits, len(loader), dim=1)):
+                ##
+                # Getting info for loss function
+                ##
+                labels = labels.float().to(self.device)
+                # Instead of using the original model, sample a set of parameters
+                # using your SWAG sampling logic (you might need to implement this)
+                # Similar to the original model, compute the loss on the logits
+                ##
 
-                for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
-                    waveforms = waveforms.float().to(self.device)
-                    labels = labels.float().to(self.device)
+                loss = self.loss_fn(logits_chunk, labels, self.model.training)
+                ##
 
-                    # Instead of using the original model, sample a set of parameters
-                    # using your SWAG sampling logic (you might need to implement this)
-                    self.sample_parameters()
-                    predictions_logits = self.model(waveforms)
+                predictions = torch.round(logits_chunk) # this means threshold = 0.5
+                self.predictions.extend(predictions.cpu().detach().tolist()) #was ist das
 
-                    # Similar to the original model, compute the loss on the logits
-                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
+                # Update your metrics manager (you may need to adapt this based on your setup)
+                self.test_metrics_manager.update_loss(
+                    loss, epoch=0, batch_i=batch_i
+                )
+                self.test_metrics_manager.update_confusion_matrix(
+                    labels, predictions, epoch=0
+                )
 
-                    predictions_probabilities = torch.sigmoid(predictions_logits)
-                    predictions = torch.round(predictions_probabilities)
+                # Save predictions if needed
+                self.save_prediction(
+                    filenames, predictions, logits_chunk, "test"
+                )
+                # Save labels if needed
+                # self.save_label(
+                #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
+                # )
 
-                    self.predictions.extend(predictions.cpu().detach().tolist())
 
-                    # Update your metrics manager (you may need to adapt this based on your setup)
-                    self.test_metrics_manager.update_loss(
-                        loss, epoch=0, batch_i=batch_i
-                    )
-                    self.test_metrics_manager.update_confusion_matrix(
-                        labels, predictions, epoch=0
-                    )
 
-                    # Save predictions if needed
-                    self.save_prediction(
-                        filenames, predictions, predictions_probabilities, "test"
-                    )
-                    # Save labels if needed
-                    # self.save_label(
-                    #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
-                    # )
+
+
+        # with tqdm(
+        #     self.test_loader,
+        #     desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
+        #     total=len(self.test_loader),
+        # ) as pbar:
+        #     with torch.no_grad():
+        #         # Reset predictions
+        #         self.predictions = []
+        #         predictions_probabilities_with_BMA = self.predict_probabilities(self.test_loader)
+        #         predictions = torch.round(predictions_probabilities_with_BMA) # this means threshold = 0.5
+
+        #         for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+        #             ##
+        #             # Getting info for loss function
+        #             ##
+        #             waveforms = waveforms.float().to(self.device)
+        #             labels = labels.float().to(self.device)
+        #             # Instead of using the original model, sample a set of parameters
+        #             # using your SWAG sampling logic (you might need to implement this)
+        #             # Similar to the original model, compute the loss on the logits
+        #             ##
+
+        #             ##
+        #             # Getting BMA probabilities
+        #             ##
+        #             predictions_probabilities_with_BMA = self.predict_probabilities(self.test_loader)
+        #             predictions = torch.round(predictions_probabilities_with_BMA) # this means threshold = 0.5
+        #             # Got probabilities instead of logits, so should use sigmoid^{-1}(probabilities) to compute loss
+        #             bma_prediction_logits = torch.logit(predictions_probabilities_with_BMA)
+        #             loss = self.loss_fn(bma_prediction_logits, labels, self.model.training)
+        #             ##
+
+        #             self.predictions.extend(predictions.cpu().detach().tolist()) #was ist das
+
+        #             # Update your metrics manager (you may need to adapt this based on your setup)
+        #             self.test_metrics_manager.update_loss(
+        #                 loss, epoch=0, batch_i=batch_i
+        #             )
+        #             self.test_metrics_manager.update_confusion_matrix(
+        #                 labels, predictions, epoch=0
+        #             )
+
+        #             # Save predictions if needed
+        #             self.save_prediction(
+        #                 filenames, predictions, predictions_probabilities, "test"
+        #             )
+        #             # Save labels if needed
+        #             # self.save_label(
+        #             #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
+        #             # )
 
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):

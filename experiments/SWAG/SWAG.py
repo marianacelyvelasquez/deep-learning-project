@@ -22,5 +22,4 @@ class SWAGExperiment:
         self.swag_inference.calibrate()
 
         # Run SWAGInference::evaluate()
-        self.swag_inference.evaluate()
-
+        self.swag_inference.evaluate() #TODO: implement evaluate() here and not from swag_inference
