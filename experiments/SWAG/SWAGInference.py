@@ -56,8 +56,6 @@ class SWAGInference:
             self.validation_dataset, batch_size=128, shuffle=True
         )
 
-        self.train_loader = self.train_loader
-        self.test_loader = self.test_loader
 
         ##
         # Load model
@@ -89,6 +87,7 @@ class SWAGInference:
         self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=self.optimizer, step_size=5, gamma=1 #testing variables – no strings attached
             )
+        #TODO for start: learning rate will be constant
 
         ### NOTE: or try 
         # torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
@@ -101,10 +100,9 @@ class SWAGInference:
         # Allocate memory for theta, theta_squared, D (D-matrix)
         self.theta = self._create_weight_copy()
         self.theta_squared = self._create_weight_copy()
-        self.D = self._create_weight_copy()
-
-        # ADDED: for full SWAG
-        self.weight_copies =  collections.deque(maxlen=self.swag_epochs * self.swag_update_freq) #Pascal's team did different
+        
+        #For full SWAG: D-matrix (some transormation of the weights / just the weights - tbd)
+        self.D = collections.deque(maxlen=self.deviation_matrix_max_rank) #checkout if that's nice
         
         # Define prediction threshold (used for calibration I think)
         self.prediction_threshold = 0.5 # TODO: Ric help think of a sensible threshold
@@ -166,7 +164,7 @@ class SWAGInference:
         theta_difference = self._create_weight_copy()
         for name, param in current_params.items():
             theta_difference[name] = torch.clamp(param - self.theta[name], min=1e-10)
-        self.weight_copies.append(theta_difference)
+        self.D.append(theta_difference)
 
     def fit_swag(self) -> None:
         # What this should do: init theta and theta_squared
@@ -174,8 +172,7 @@ class SWAGInference:
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
-        loss = self.loss_fn
-        lr_scheduler = self.lr_scheduler
+        lr_scheduler = self.lr_scheduler #todo : make it a constant like f.ex. 0.001
         epoch = self.epoch
 
         self.theta = {name: param.detach().clone()
@@ -217,7 +214,7 @@ class SWAGInference:
                         filenames, predictions, predictions_probabilities, "train"
                     )
 
-                    loss.backward() #question: why is this .backward fn not recognized
+                    loss.backward() #question: why is this .backward fn not recognized # check that his actually works
                     self.optimizer.step()
 
                     pbar_dict["lr"] = lr_scheduler.get_last_lr()[0]
@@ -299,6 +296,7 @@ class SWAGInference:
 
         # Loop over each layer in the model (self.model.named_parameters())
         for name, param in self.model.named_parameters():
+            # Implementation: Equation (1) of paper A Simple Baseline for Bayesian Uncertainty in Deep Learning
             # SWAG-diagonal part
             # Draw vectors z_1 and z_2 almost randomly
             z_1 = torch.normal(mean=0.0, std=1.0, size=param.size()) # random sample diagonal
@@ -321,13 +319,13 @@ class SWAGInference:
             # Compute full covariance matrix by doing D * z_2
             z_2 = z_2.to(current_mean.device) # move z_2 to (on my local env) mps:0 device
             sampled_param += (1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)) * torch.sum(
-                torch.stack([D_i[name] * z_2 for D_i in self.weight_copies])
+                torch.stack([D_i[name] * z_2 for D_i in self.D])
             )
 
 
             # Load sampled params into model
             # Modify weight value in-place; directly changing
-            param.data = sampled_param
+            param.data = sampled_param #param is a reference to the model weights -> here weights are updated
 
 
         # Update batchnorm
@@ -388,16 +386,10 @@ class SWAGInference:
             #  using the entire training dataset during the inference phase
             module.reset_running_stats()
 
-        loader = torch.utils.data.DataLoader(
-            self.train_loader.dataset,
-            batch_size=32,
-            shuffle=False,
-            num_workers=0,
-            drop_last=False,
-        )
-
         self.model.train()
-        for (_, waveforms, _) in loader: #PROBLEMATIC
+
+        # Only done for test set PROBABLY TODO: check /!\
+        for (_, waveforms, _) in self.test_loader:
             waveforms = waveforms.float().to(self.device)
             self.model(waveforms)
         self.model.eval()

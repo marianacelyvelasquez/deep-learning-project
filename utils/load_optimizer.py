@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 
-def load_optimizer(model, device, checkpoint_path, load_optimizer: bool, learning_rate=0.001):
+def load_optimizer(model, device, checkpoint_path, load_optimizer: bool, learning_rate=0.001): #This is a bug -> checkout pacal's branch
     print(f"Loading optimizer with learning rate {learning_rate} and checkpoint_path {checkpoint_path}")
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
