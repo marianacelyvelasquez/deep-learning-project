@@ -7,7 +7,7 @@ from tqdm import tqdm
 def flatten_dataset(source_dir, flattened_dir="data/cinc2020_flattened"):
     # Create flattened directory if it does not exist
     if not os.path.exists(flattened_dir):
-        flattened_dir.mkdir(exist_ok=True)
+        os.makedirs(flattened_dir)
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,7 +22,10 @@ def flatten_dataset(source_dir, flattened_dir="data/cinc2020_flattened"):
             for filename in filenames:
                 if filename.endswith(".hea") or filename.endswith(".mat"):
                     files_to_move.append(
-                        (Path(dirpath) / filename, flattened_dir / filename)
+                        (
+                            os.path.join(dirpath, filename),
+                            os.path.join(flattened_dir, filename),
+                        )
                     )
 
     # Move the files with a progress bar
