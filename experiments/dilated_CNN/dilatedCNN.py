@@ -399,7 +399,7 @@ class dilatedCNNExperiment:
             total=len(self.test_loader),
         ) as pbar:
             # Reset predictions
-            self.preds = []
+            self.predictions = []
             self.preds_probs = []
 
             self.labels = []
@@ -407,6 +407,7 @@ class dilatedCNNExperiment:
             # Test
             with torch.no_grad():
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
+                    self.labels.extend(labels)
                     # last_epoch = self.num_epochs - 1
 
                     # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
@@ -429,7 +430,6 @@ class dilatedCNNExperiment:
                     predictions = torch.round(predictions_probabilities)
 
                     self.predictions.extend(predictions.cpu().detach().tolist())
-                    self.labels.extend(labels.cpu().detach().tolist())
 
                     self.test_metrics_manager.update_loss(
                         loss, epoch=0, batch_i=batch_i
