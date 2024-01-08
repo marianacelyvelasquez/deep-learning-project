@@ -4,10 +4,12 @@ from pathlib import Path
 from tqdm import tqdm
 
 
-def flatten_dataset(source_dir, flattened_dir_name="cinc2020_flattened"):
+def flatten_dataset(source_dir, flattened_dir="data/cinc2020_flattened"):
     # Create flattened directory if it does not exist
-    flattened_dir = Path(source_dir).parent / flattened_dir_name
-    flattened_dir.mkdir(exist_ok=True)
+    if not os.path.exists(flattened_dir):
+        flattened_dir.mkdir(exist_ok=True)
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
 
     # List of files to move
     files_to_move = []
@@ -27,7 +29,10 @@ def flatten_dataset(source_dir, flattened_dir_name="cinc2020_flattened"):
     for src_file, dst_file in tqdm(
         files_to_move, desc="Flattening dataset", unit="file"
     ):
-        shutil.copy(str(src_file), str(dst_file))
+        src_file = os.path.join(current_dir, str(src_file))
+        dst_file = os.path.join(current_dir, (dst_file))
+
+        os.symlink(str(src_file), str(dst_file))
 
     print(f"Flattened dataset is available at: {flattened_dir}")
 
