@@ -10,28 +10,26 @@ class BinaryFocalLoss(nn.Module):
         super(BinaryFocalLoss, self).__init__()
         self.gamma = gamma
         self.alpha = alpha
-        self.pos_weight = pos_weight.to(
-            device) if pos_weight is not None else None
+        self.pos_weight = pos_weight.to(device) if pos_weight is not None else None
 
     def forward(self, inputs, targets, training):
         pos_weight = self.pos_weight if training else None
         BCE_loss = F.binary_cross_entropy_with_logits(
-            inputs, targets, reduction='none', pos_weight=pos_weight)
+            inputs, targets, reduction="none", pos_weight=pos_weight
+        )
         # prevents nans when probability 0
         pt = torch.exp(-BCE_loss)
-        focal_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
         return focal_loss.mean()
 
 
 class SoftmaxFocalLoss(nn.Module):
-    def __init__(
-        self, gamma=0, alpha=None, size_average=True, weights=None
-    ):
+    def __init__(self, gamma=0, alpha=None, size_average=True, weights=None):
         super(SoftmaxFocalLoss, self).__init__()
         self.gamma = gamma
         self.alpha = alpha
         if isinstance(alpha, (float, int)):
-            self.alpha = torch.Tensor([alpha, 1-alpha])
+            self.alpha = torch.Tensor([alpha, 1 - alpha])
         if isinstance(alpha, list):
             self.alpha = torch.Tensor(alpha)
         self.size_average = size_average
@@ -41,8 +39,8 @@ class SoftmaxFocalLoss(nn.Module):
         if input.dim() > 2:
             # N,C,H,W => N,C,H*W
             input = input.view(input.size(0), input.size(1), -1)
-            input = input.transpose(1, 2)    # N,C,H*W => N,H*W,C
-            input = input.contiguous().view(-1, input.size(2))   # N,H*W,C => N*H*W,C
+            input = input.transpose(1, 2)  # N,C,H*W => N,H*W,C
+            input = input.contiguous().view(-1, input.size(2))  # N,H*W,C => N*H*W,C
         target = target.view(-1, 1)
 
         logpt = F.log_softmax(input, dim=-1)
@@ -56,7 +54,7 @@ class SoftmaxFocalLoss(nn.Module):
             at = self.alpha.gather(0, target.data.view(-1))
             logpt = logpt * Variable(at)
 
-        loss = -1 * (1-pt)**self.gamma * logpt
+        loss = -1 * (1 - pt) ** self.gamma * logpt
 
         if self.weights is not None:
             w = self.weights.repeat(target.shape[0], 1).gather(1, target)

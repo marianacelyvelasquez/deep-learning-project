@@ -37,7 +37,7 @@ if __name__ == "__main__":
     )
 
     X_test, y_test, classes_test = cinc_utils.get_xy(
-        Config.TRAIN_DATA_DIR,
+        Config.TEST_DATA_DIR,
         max_sample_length=5000,
         cut_off=True,
         class_mapping=class_mapping,
@@ -66,6 +66,7 @@ if __name__ == "__main__":
             y_validation,
             X_test,
             y_test,
+            classes,
             k + 1,
             checkpoint_path,
         )
