@@ -17,6 +17,7 @@ class Cinc2020Dataset(Dataset):
         y,
         classes,
         root_dir,
+        name,
         num_leads=12,
         max_sample_length=5000,
     ):
@@ -33,6 +34,7 @@ class Cinc2020Dataset(Dataset):
         self.max_sample_length = max_sample_length
         self.classes = classes
         self.root_dir = root_dir
+        self.name = name
 
         print(
             "CINC2020Dataset initialized\nNumber of samples: {}\nUnique classes: {}".format(
