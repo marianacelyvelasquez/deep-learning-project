@@ -412,14 +412,14 @@ class SWAGInference:
         loader = self.test_loader
 
         predicted_test_probabilities = self.predict_probabilities(loader) #all the predicted probabilities of the test set question: is it too big?
-        predicted_test_logits = torch.logit(predicted_test_probabilities)
+        assert len(loader.dataset) == predicted_test_probabilities.size(0), "Size mismatch between loader and logits"
 
         with tqdm(
             loader,
             desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
             total=len(loader),
         ) as pbar:
-            for batch_i, (filenames, _, labels), logits_chunk in zip(enumerate(pbar), torch.chunk(predicted_test_logits, len(loader), dim=1)):
+            for (batch_i, (filenames, _, labels)), probabilities_chunk in zip(enumerate(pbar), torch.chunk(predicted_test_probabilities, len(loader), dim=1)):
                 ##
                 # Getting info for loss function
                 ##
@@ -428,14 +428,14 @@ class SWAGInference:
                 # using your SWAG sampling logic (you might need to implement this)
                 # Similar to the original model, compute the loss on the logits
                 ##
+                predicted_test_logits_chunk = torch.logit(probabilities_chunk)
 
-                loss = self.loss_fn(logits_chunk, labels, self.model.training)
+                loss = self.loss_fn(predicted_test_logits_chunk, labels, self.model.training)
                 ##
 
-                predictions = torch.round(logits_chunk) # this means threshold = 0.5
+                predictions = torch.round(probabilities_chunk) # this means threshold = 0.5
                 self.predictions.extend(predictions.cpu().detach().tolist()) #was ist das
 
-                # Update your metrics manager (you may need to adapt this based on your setup)
                 self.test_metrics_manager.update_loss(
                     loss, epoch=0, batch_i=batch_i
                 )
@@ -445,68 +445,8 @@ class SWAGInference:
 
                 # Save predictions if needed
                 self.save_prediction(
-                    filenames, predictions, logits_chunk, "test"
+                    filenames, predictions, probabilities_chunk, "test"
                 )
-                # Save labels if needed
-                # self.save_label(
-                #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
-                # )
-
-
-
-
-
-        # with tqdm(
-        #     self.test_loader,
-        #     desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
-        #     total=len(self.test_loader),
-        # ) as pbar:
-        #     with torch.no_grad():
-        #         # Reset predictions
-        #         self.predictions = []
-        #         predictions_probabilities_with_BMA = self.predict_probabilities(self.test_loader)
-        #         predictions = torch.round(predictions_probabilities_with_BMA) # this means threshold = 0.5
-
-        #         for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
-        #             ##
-        #             # Getting info for loss function
-        #             ##
-        #             waveforms = waveforms.float().to(self.device)
-        #             labels = labels.float().to(self.device)
-        #             # Instead of using the original model, sample a set of parameters
-        #             # using your SWAG sampling logic (you might need to implement this)
-        #             # Similar to the original model, compute the loss on the logits
-        #             ##
-
-        #             ##
-        #             # Getting BMA probabilities
-        #             ##
-        #             predictions_probabilities_with_BMA = self.predict_probabilities(self.test_loader)
-        #             predictions = torch.round(predictions_probabilities_with_BMA) # this means threshold = 0.5
-        #             # Got probabilities instead of logits, so should use sigmoid^{-1}(probabilities) to compute loss
-        #             bma_prediction_logits = torch.logit(predictions_probabilities_with_BMA)
-        #             loss = self.loss_fn(bma_prediction_logits, labels, self.model.training)
-        #             ##
-
-        #             self.predictions.extend(predictions.cpu().detach().tolist()) #was ist das
-
-        #             # Update your metrics manager (you may need to adapt this based on your setup)
-        #             self.test_metrics_manager.update_loss(
-        #                 loss, epoch=0, batch_i=batch_i
-        #             )
-        #             self.test_metrics_manager.update_confusion_matrix(
-        #                 labels, predictions, epoch=0
-        #             )
-
-        #             # Save predictions if needed
-        #             self.save_prediction(
-        #                 filenames, predictions, predictions_probabilities, "test"
-        #             )
-        #             # Save labels if needed
-        #             # self.save_label(
-        #             #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
-        #             # )
-
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
         output_dir = os.path.join(
