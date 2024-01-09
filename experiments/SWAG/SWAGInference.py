@@ -84,7 +84,7 @@ class SWAGInference:
         self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=self.swag_learning_rate)
 
         # Define loss
-        self.loss_fn = setup_loss_fn(self.device, self.train_loader)
+        self.loss_fn = setup_loss_fn(self.train_loader, self.device)
 
         # Allocate memory for theta, theta_squared, D (D-matrix)
         self.theta = self._create_weight_copy()

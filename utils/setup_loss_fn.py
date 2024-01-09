@@ -22,7 +22,7 @@ def calc_pos_weights(loader):
 
     return torch.Tensor(np.around(freq.max() / freq, decimals=1))
 
-def setup_loss_fn(device, loader):
+def setup_loss_fn(loader, device):
     # pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1
     # TODO: Make sure the values we compute make sense
 
