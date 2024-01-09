@@ -43,6 +43,9 @@ if __name__ == "__main__":
         class_mapping=class_mapping,
     )
 
+    classes = [str(c) for c in classes]
+    classes_test = [str(c) for c in classes_test]
+
     # TODO: Fix numpy seeds and torch seeds
     np.random.seed(42)
 
@@ -67,6 +70,7 @@ if __name__ == "__main__":
             X_test,
             y_test,
             classes,
+            classes_test,
             k + 1,
             checkpoint_path,
         )

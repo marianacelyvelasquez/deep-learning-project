@@ -3,4 +3,5 @@ __PYCACHE__
 __pycache__
 venv
 output
+output*
 *.zip
