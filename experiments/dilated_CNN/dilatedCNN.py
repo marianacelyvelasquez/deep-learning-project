@@ -16,6 +16,7 @@ from dataloaders.cinc2020.common import labels_map
 from utils.load_optimizer import load_optimizer
 from utils.setup_loss_fn import setup_loss_fn
 from utils.load_model import load_model
+from utils.get_device import get_device
 
 class dilatedCNNExperiment:
     def __init__(
@@ -51,7 +52,7 @@ class dilatedCNNExperiment:
 
         self.CV_k = CV_k
 
-        self.device = self.get_device()
+        self.device = get_device()
 
         self.classes = classes
         self.classes_test = classes_test
@@ -185,22 +186,6 @@ class dilatedCNNExperiment:
             # Move the file
             os.symlink(original_path + ".hea", target_path + ".hea")
             os.symlink(original_path + ".mat", target_path + ".mat")
-
-    def get_device(self):
-        # Check if CUDA is available
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-            print("Using CUDA")
-        # Check if MPS is available
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-            print("Using METAL GPU")
-        # If neither CUDA nor MPS is available, use CPU
-        else:
-            device = torch.device("cpu")
-            print("Using CPU")
-
-        return device
 
     def read_records(self, source_dir):
         records = []
