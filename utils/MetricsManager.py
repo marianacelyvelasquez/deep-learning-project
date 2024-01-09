@@ -14,7 +14,7 @@ from common.common import eq_classes
 
 
 class MetricsManager:
-    def __init__(self, name, num_epochs, num_classes, num_batches, CV_k):
+    def __init__(self, name, num_epochs, num_classes, num_batches, CV_k, classes):
         # True Positives
         self.tp: npt.NDArray[np.int_] = np.zeros((num_epochs, num_classes))
         # False Negatives
@@ -28,6 +28,8 @@ class MetricsManager:
 
         self.output_folder = os.path.join(Config.OUTPUT_DIR, f"fold_{CV_k}", "metrics")
         self.output_filename = f"{name}_metrics.csv"
+
+        self.classes = classes
 
         if not os.path.exists(os.path.dirname(self.output_folder)):
             os.makedirs(os.path.dirname(self.output_folder))
@@ -73,6 +75,18 @@ class MetricsManager:
         self.ROCAUC_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
         self.AP_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)
         self.loss_micro: npt.NDArray[np.float_] = np.zeros(num_epochs)  # TODO WHYYYY
+
+        # Macro Averages
+        self.recall_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.TNR_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.FPR_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.PPV_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.NPV_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.f1_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.f2_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        self.g2_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
+        # If you calculate Average Precision (AP) for each class
+        self.AP_macro: npt.NDArray[np.float_] = np.zeros(num_epochs)
 
     def update_confusion_matrix(self, y_trues, y_preds, epoch):
         """
@@ -130,6 +144,53 @@ class MetricsManager:
 
     #  TODO: We work with 24 clases,A has 27. or i think 27 are used in the paper code???
     def compute_challenge_metric(self, y_true, y_pred, epoch):
+        equivalent_classes = [
+            ["713427006", "59118001"],
+            ["284470004", "63593006"],
+            ["427172004", "17338001"],
+        ]
+
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+
+        classes_adj = self.classes + [eq[1] for eq in equivalent_classes]
+
+        def add_equivalent_classes(m, classes, classes_adj, equivalent_classes):
+            m = np.array(m)
+            # it is important that we append the copies in the same order as in
+            # `equivalent_classes` to be consistent to the load_weights function
+            tmp = np.zeros((m.shape[0], len(classes_adj)))
+            tmp[:, : len(classes)] = m
+            for eq in equivalent_classes:
+                k = classes.index(eq[0])
+                i = classes_adj.index(eq[1])
+                # add a copy for the equivalent class label
+                tmp[:, i] = m[:, k]
+            return tmp
+
+        # add copies of the equivalent class labels
+        y_true_adj = add_equivalent_classes(
+            y_true, self.classes, classes_adj, equivalent_classes
+        )
+        y_pred_adj = add_equivalent_classes(
+            y_pred, self.classes, classes_adj, equivalent_classes
+        )
+
+        normal_class = "426783006"
+
+        weights_file = "utils/reward_matrix_weights.csv"
+        weights = load_weights(weights_file, self.classes)
+
+        challenge_metric = compute_challenge_metric(
+            weights, y_true, y_pred, self.classes, normal_class
+        )
+
+        print(f"Challenge metric: {challenge_metric}")
+
+        self.challenge_metric[epoch] = challenge_metric
+
+    """
+    def compute_challenge_metric(self, y_true, y_pred, epoch):
         y_true = np.array(y_true)
         y_pred = np.array(y_pred)
         classes = [str(class_) for class_ in labels_map]
@@ -143,8 +204,9 @@ class MetricsManager:
         )
 
         self.challenge_metric[epoch] = challenge_score
+    """
 
-    def compute_metrics(self, epoch):
+    def compute_macro_averages(self, epoch):
         current_tp = self.tp[epoch]
         current_tn = self.tn[epoch]
         current_fp = self.fp[epoch]
@@ -161,6 +223,18 @@ class MetricsManager:
             current_tp, current_fp, current_fn, beta=2
         )
         # TODO: Implement average precision score
+
+        # Compute macro averages
+        self.recall_macro[epoch] = np.mean(self.recall[epoch])
+        self.TNR_macro[epoch] = np.mean(self.TNR[epoch])
+        self.FPR_macro[epoch] = np.mean(self.FPR[epoch])
+        self.PPV_macro[epoch] = np.mean(self.PPV[epoch])
+        self.NPV_macro[epoch] = np.mean(self.NPV[epoch])
+        self.f1_macro[epoch] = np.mean(self.f1[epoch])
+        self.f2_macro[epoch] = np.mean(self.f2[epoch])
+        self.g2_macro[epoch] = np.mean(self.g2[epoch])
+        # Macro average for AP, if computed per class
+        # self.AP_macro = np.mean(self.AP[epoch])
 
         print("Updated all metrics for the current epoch.")
 
@@ -247,6 +321,90 @@ class MetricsManager:
 
         return jaccard
 
+    def report_macro_averages(
+        self, epoch, rewrite=False
+    ):  # k is the k-fold CV fold (starts at 0 ends at 9?)
+        # Define the metrics to report
+        metrics = [
+            "Recall",
+            "TNR",
+            "FPR",
+            "PPV",
+            "NPV",
+            "F1",
+            "F2",
+            "Jaccard",
+            "AP",
+            "Challenge",
+            "Loss",
+        ]
+
+        # Print the header
+        header = "".join([f"{metric:>10}" for metric in metrics])
+        print(header)
+        print("-" * len(header))
+
+        # Print metrics for each class
+        metrics_values = [
+            self.recall_macro[epoch],
+            self.TNR_macro[epoch],
+            self.FPR_macro[epoch],
+            self.PPV_macro[epoch],
+            self.NPV_macro[epoch],
+            self.f1_macro[epoch],
+            self.f2_macro[epoch],
+            self.g2_macro[epoch],
+            self.AP_macro[epoch],
+            self.challenge_metric[epoch],
+            np.mean(self.loss[epoch]),
+        ]
+
+        # Function to format values, bold for challenge metric and loss
+        def format_value(value, index):
+            if index == 9 or index == 10:
+                # Assuming 'Challenge' is at index 9 and 'Loss' at index 10
+                return f"\033[1m{value:10.4f}\033[0m"
+            return f"{value:10.4f}"
+
+        row = "".join(
+            [format_value(value, idx) for idx, value in enumerate(metrics_values)]
+        )
+        print(row)
+
+        print("\n")
+        # Create a subfolder for each CV fold
+        output_path_with_CV_fold = os.path.join(
+            self.output_folder, f"{self.output_filename}"
+        )
+
+        if not os.path.exists(os.path.dirname(output_path_with_CV_fold)):
+            os.makedirs(os.path.dirname(output_path_with_CV_fold))
+
+        # Determine the file mode - overwrite if it's the first epoch and file exists
+        file_mode = (
+            "w"
+            if epoch == 0
+            and os.path.exists(output_path_with_CV_fold)
+            or rewrite is True
+            else "a"
+        )
+
+        # Append the metrics for the current epoch to the CSV file
+        with open(output_path_with_CV_fold, file_mode, newline="") as csvfile:
+            csvwriter = csv.writer(csvfile)
+
+            # Write header if it's the first epoch
+            if epoch == 0 or rewrite:
+                csvwriter.writerow(["Epoch"] + metrics)
+
+            # Write the metrics values
+            csvwriter.writerow(
+                [
+                    f"{value:.4f}" if isinstance(value, float) else value
+                    for value in [epoch] + metrics_values
+                ]
+            )
+
     def report(self, epoch):
         # Define the metrics to report
         metrics = [
@@ -259,7 +417,7 @@ class MetricsManager:
             "F2",
             "Jaccard",
             "AP",
-            "loss",
+            "loss (mean)",
         ]
         num_classes = 24  # Assuming 24 classes
 
