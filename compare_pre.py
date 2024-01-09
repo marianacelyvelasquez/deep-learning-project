@@ -34,7 +34,7 @@ def select_segment(ecg_signal, duration, fs_target):
     return ecg_signal[:N]
 
 
-def our_process_record(record_path, their=False, fancy_select=False):
+def our_process_record(record_path, the_paper_code=False, fancy_select=False):
     # Read a ECG measurement (record) from the CINC2020 dataset.
     # It read the .mat and .hea file and creates a record object out of it.
     # Note: We do not have an Annotations object. Annotation objects can be used
@@ -68,7 +68,7 @@ def our_process_record(record_path, their=False, fancy_select=False):
 
         # Resample to target frequency if necessary
         if fs != fs_target:
-            if their is not True:
+            if the_paper_code is not True:
                 x_tmp, _ = wfdb.processing.resample_sig(x_tmp, fs, fs_target)
             else:
                 length = len(x_tmp)
@@ -165,7 +165,7 @@ class ApplyGain(object):
         return sample
 
 
-def their_process_record(record_path):
+def the_paper_code_process_record(record_path):
     max_sample_length = 5000
 
     waveform = scipy.io.loadmat(record_path + ".mat")["val"]
@@ -240,13 +240,13 @@ if __name__ == "__main__":
     print("record_original.fs: ", record_original.fs)
     print("")
 
-    ecg_signal_our = our_process_record(record_path, their=False, fancy_select=True)
+    ecg_signal_our = our_process_record(record_path, the_paper_code=False, fancy_select=True)
 
     print("")
     print("ecg_signal_our.shape: ", ecg_signal_our.shape)
     print("")
 
-    ecg_signal_their = their_process_record(record_path)
+    ecg_signal_the_paper_code = the_paper_code_process_record(record_path)
 
     print("")
     print("ecg_signal_our.shape: ", ecg_signal_our.shape)
@@ -289,7 +289,7 @@ if __name__ == "__main__":
         # Their processed signal
         axes[i].plot(
             np.arange(start_time, start_time + stop_time * k, k),
-            ecg_signal_their["waveform"][i, start_time : start_time + stop_time],
+            ecg_signal_the_paper_code["waveform"][i, start_time : start_time + stop_time],
             label="Their Processed",
             color="red",
             linestyle=":",
