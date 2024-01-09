@@ -218,7 +218,7 @@ class SWAGInference:
                     ## End of just updating metrics
 
                 if epoch % self.swag_update_freq == 0:
-                    self.n = epoch // self.swag_update_freq + 1
+                    self.n = ( epoch + 1 ) // self.swag_update_freq #Epoch starts at 0 and reaches S-1, but in algo should start at 1 and go to S
                     self.update_swag()
 
     def calibrate(self) -> None:
