@@ -15,6 +15,7 @@ from utils.MetricsManager import MetricsManager
 from dataloaders.cinc2020.common import labels_map
 from utils.load_optimizer import load_optimizer
 from utils.setup_loss_fn import setup_loss_fn
+from utils.load_model import load_model
 
 class dilatedCNNExperiment:
     def __init__(
@@ -88,7 +89,7 @@ class dilatedCNNExperiment:
             self.validation_dataset, batch_size=128, shuffle=True
         )
 
-        self.model = self.load_model()
+        self.model = load_model(self.network_params, self.device, self.checkpoint_path)
 
         self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=Config.LEARNING_RATE)
         self.loss_fn = setup_loss_fn(self.train_loader, self.device) #you only pass the loader to compute the positive weights, which are only needed when training
