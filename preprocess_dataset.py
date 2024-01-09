@@ -170,9 +170,9 @@ def preprocess_dataset(source_dir: str):
 
     # Initialize the processor TODO check the paths are correct lol
     processor = Processor(source_dir)
-    processor.process_records(record_paths_train, processed_dir_training, their=True)
-    processor.process_records(record_paths_test, processed_dir_testing, their=True)
-    processor.process_records(record_paths_val, processed_dir_validating, their=True)
+    processor.process_records(record_paths_train, processed_dir_training, the_paper_code=True)
+    processor.process_records(record_paths_test, processed_dir_testing, the_paper_code=True)
+    processor.process_records(record_paths_val, processed_dir_validating, the_paper_code=True)
 
     # # TODO: copy .mat files to directories
     # for filename in Path(input_dir).glob("*.mat"):
@@ -247,10 +247,10 @@ if __name__ == "__main__":
 
         # Process training data
         processor = Processor()
-        processor.process_records(record_paths_train, train_data_dir, their=True)
+        processor.process_records(record_paths_train, train_data_dir, the_paper_code=True)
 
         # Process test data
-        processor.process_records(record_paths_test, test_data_dir, their=True)
+        processor.process_records(record_paths_test, test_data_dir, the_paper_code=True)
 
     else:
         print("Usage: python preprocess_dataset.py <data_source_dir_folder1> <data_source_dir_folder2>")

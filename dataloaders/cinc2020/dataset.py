@@ -13,14 +13,14 @@ from dataloaders.cinc2020.common import labels_map
 
 
 class Cinc2020Dataset(Dataset):
-    def __init__(self, X, y, process=False, their=False):
+    def __init__(self, X, y, process=False, the_paper_code=False):
         # self.root_dir = "data/cinc2020/training"
         self.root_dir = Config.DATA_DIR
         self.records = X  # those are paths to the records
         self.y = y
 
         self.process = process
-        self.their = their
+        self.the_paper_code = the_paper_code
 
         # Equivalence classes
         self.eq_classes = eq_classes
@@ -89,7 +89,7 @@ class Cinc2020Dataset(Dataset):
         return ecg_signal[:N]
 
     @staticmethod
-    def process_record(record_path, their=False):
+    def process_record(record_path, the_paper_code=False):
         # Read a ECG measurement (record) from the CINC2020 dataset.
         # It read the .mat and .hea file and creates a record object out of it.
         # Note: We do not have an Annotations object. Annotation objects can be used
@@ -127,11 +127,11 @@ class Cinc2020Dataset(Dataset):
 
             # Resample to target frequency if necessary
             if fs != fs_target:
-                if their is False:
+                if the_paper_code is False:
                     print("Our resampling")
                     x_tmp, _ = wfdb.processing.resample_sig(x_tmp, fs, fs_target)
                 else:
-                    print("Their resampling")
+                    print("The paper code resampling")
                     length = len(x_tmp)
                     x = np.linspace(0, length / fs, num=length)
                     f = interpolate.interp1d(x, x_tmp, axis=0)
