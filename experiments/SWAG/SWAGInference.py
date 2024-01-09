@@ -83,18 +83,6 @@ class SWAGInference:
         # Define optimizer and learning rate scheduler
         self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=self.swag_learning_rate)
 
-
-        # NOTE: could add a step_size_down parameter (set it to cycle_len=5) so the cyclic pattern is not just increasing
-        self.lr_scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer=self.optimizer, step_size=5, gamma=1 #testing variables – no strings attached
-            )
-        #TODO for start: learning rate will be constant
-
-        ### NOTE: or try 
-        # torch.optim.lr_scheduler.CyclicLR(optimizer=self.optimizer, base_lr=swag_learning_rate / 10,
-        #                                   max_lr=swag_learning_rate, step_size_up=cycle_len, cycle_momentum=True)
-
-
         # Define loss
         self.loss_fn = setup_loss_fn(self.device, self.train_loader)
 
@@ -173,7 +161,6 @@ class SWAGInference:
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
-        lr_scheduler = self.lr_scheduler #todo : make it a constant like f.ex. 0.001
         epoch = self.epoch
 
         self.theta = {name: param.detach().clone()
@@ -187,7 +174,6 @@ class SWAGInference:
             desc=f"\033[32mTraining dilated CNN. Epoch {epoch + 1}/{self.max_num_epochs}\033[0m",
             total=len(self.train_loader),
         ) as pbar:
-                pbar_dict = {}
                 # Reset predictions
                 self.predictions = []
 
@@ -218,9 +204,6 @@ class SWAGInference:
                     loss.backward() #question: why is this .backward fn not recognized # check that his actually works
                     self.optimizer.step()
 
-                    pbar_dict["lr"] = lr_scheduler.get_last_lr()[0]
-                    lr_scheduler.step()
- 
                     ##
                     # Metrics are updated once per batch (batch size here by default is 128)
                     ##
