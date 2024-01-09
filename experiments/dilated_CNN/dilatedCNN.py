@@ -18,6 +18,7 @@ from utils.setup_loss_fn import setup_loss_fn
 from utils.load_model import load_model
 from utils.get_device import get_device
 
+
 class dilatedCNNExperiment:
     def __init__(
         self,
@@ -81,7 +82,11 @@ class dilatedCNNExperiment:
             X_val, y_val, classes=classes, root_dir=Config.TRAIN_DATA_DIR, name="val"
         )
         self.test_dataset = Cinc2020Dataset(
-            X_test, y_test, classes=classes_test, root_dir=Config.TEST_DATA_DIR, name="test"
+            X_test,
+            y_test,
+            classes=classes_test,
+            root_dir=Config.TEST_DATA_DIR,
+            name="test",
         )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
@@ -92,8 +97,16 @@ class dilatedCNNExperiment:
 
         self.model = load_model(self.network_params, self.device, self.checkpoint_path)
 
-        self.optimizer = load_optimizer(self.model, self.device, self.checkpoint_path, load_optimizer=Config.LOAD_OPTIMIZER, learning_rate=Config.LEARNING_RATE)
-        self.loss_fn = setup_loss_fn(self.train_loader, self.device) #you only pass the loader to compute the positive weights, which are only needed when training
+        self.optimizer = load_optimizer(
+            self.model,
+            self.device,
+            self.checkpoint_path,
+            load_optimizer=Config.LOAD_OPTIMIZER,
+            learning_rate=Config.LEARNING_RATE,
+        )
+        self.loss_fn = setup_loss_fn(
+            self.train_loader, self.device
+        )  # you only pass the loader to compute the positive weights, which are only needed when training
 
         self.min_num_epochs = Config.MIN_NUM_EPOCHS
         self.max_num_epochs = Config.MAX_NUM_EPOCHS
@@ -241,9 +254,7 @@ class dilatedCNNExperiment:
                     predictions_logits = self.model(waveforms)
 
                     # We compute the loss on the logits, not the probabilities
-                    loss = self.loss_fn(
-                        predictions_logits, labels, self.model.training
-                    )
+                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
 
                     # Convert logits to probabilities and round to get predictions
                     predictions_probabilities = torch.sigmoid(predictions_logits)
@@ -326,7 +337,7 @@ class dilatedCNNExperiment:
                         predictions_logits = self.model(waveforms)
 
                         # We compute the loss on the logits, not the probabilities
-                        loss = self.train_loss_fn(
+                        loss = self.loss_fn(
                             predictions_logits, labels, self.model.training
                         )
 
@@ -404,9 +415,7 @@ class dilatedCNNExperiment:
                     predictions_logits = self.model(waveforms)
 
                     # We compute the loss on the logits, not the probabilities
-                    loss = self.loss_fn(
-                        predictions_logits, labels, self.model.training
-                    )
+                    loss = self.loss_fn(predictions_logits, labels, self.model.training)
 
                     # Convert logits to probabilities and round to get predictions
                     predictions_probabilities = torch.sigmoid(predictions_logits)
