@@ -12,6 +12,17 @@ from utils.evaluate_12ECG_score import load_weights, compute_challenge_metric
 from dataloaders.cinc2020.common import labels_map
 from common.common import eq_classes
 
+# We get a lot of warnings from sklearn.metrics._ranking (computing average precision)
+# because we have lots of samples without any positive labels because the
+# data has 111 classes but we only look at 24.
+# We can ignore these warnings.
+import warnings
+
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="sklearn.metrics._ranking"
+)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
 
 class MetricsManager:
     def __init__(self, name, num_epochs, num_classes, num_batches, CV_k, classes):
