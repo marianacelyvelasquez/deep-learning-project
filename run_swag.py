@@ -15,11 +15,11 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.metrics.
 if __name__ == "__main__":
     print("Running SWAGExperiment.")
 
-    if os.path.isdir(Config.OUTPUT_DIR):
-        print(
-            "\033[91mOutput directory already exists. Either remove it or change it in the config file. Exiting.\033[0m"
-        )
-        quit()
+    # if os.path.isdir(Config.OUTPUT_DIR):
+    #     print(
+    #         "\033[91mOutput directory already exists. Either remove it or change it in the config file. Exiting.\033[0m"
+    #     )
+    #     quit()
 
     # Load or preprocess your data as needed
     record_paths_train, labels_train = get_record_paths_and_labels_binary_encoded_list(
