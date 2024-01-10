@@ -5,7 +5,6 @@ import numpy.typing as npt
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import multilabel_confusion_matrix, average_precision_score
-from experiments.dilated_CNN.config import Config
 
 from utils.evaluate_12ECG_score import load_weights, compute_challenge_metric
 
@@ -25,7 +24,9 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
 class MetricsManager:
-    def __init__(self, name, num_epochs, num_classes, num_batches, CV_k, classes):
+    def __init__(self, name, num_classes, num_batches, classes, CV_k, Config):
+        self.Config = Config
+        num_epochs = self.Config.MAX_NUM_EPOCHS
         # True Positives
         self.tp: npt.NDArray[np.int_] = np.zeros((num_epochs, num_classes))
         # False Negatives
@@ -37,7 +38,7 @@ class MetricsManager:
 
         self.loss: npt.NDArray[np.float_] = np.zeros((num_epochs, num_batches))
 
-        self.output_folder = os.path.join(Config.OUTPUT_DIR, f"fold_{CV_k}", "metrics")
+        self.output_folder = os.path.join(self.Config.OUTPUT_DIR, f"fold_{CV_k}", "metrics")
         self.output_filename = f"{name}_metrics.csv"
 
         self.classes = classes
@@ -264,13 +265,13 @@ class MetricsManager:
         non_zero_count = np.count_nonzero(self.challenge_metric)
 
         # Run at least MIN_NUM_EPOCHS epochs.
-        if non_zero_count < Config.MIN_NUM_EPOCHS:
+        if non_zero_count < self.Config.MIN_NUM_EPOCHS:
             return False
 
         # Calculate the difference
         difference = non_zero_count - max_index
 
-        if difference >= Config.EARLY_STOPPING_EPOCHS:
+        if difference >= self.Config.EARLY_STOPPING_EPOCHS:
             return True
 
         return False

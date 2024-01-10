@@ -23,9 +23,15 @@ def calc_pos_weights(loader):
     return torch.Tensor(np.around(freq.max() / freq, decimals=1))
 
 def setup_loss_fn(loader, device):
-    # pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1
-    # TODO: Make sure the values we compute make sense
+    """
+    Setup loss function: 
+    1. calculate class weights based on training data
+    (pos_weights = ((calc_pos_weights(loader) - 1) * .5) + 1)
+    2. adjust weights: subtract 1, halve the result, then add 1
+    3. set up Binary Focal Loss function with adjusted weights
+    """
 
+    print(f"I entered setup_loss_fn with device {device} \n")
     # 1. Calculate class weights based on training data
     pos_weights = calc_pos_weights(loader)
 
