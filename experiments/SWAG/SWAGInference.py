@@ -45,10 +45,10 @@ class SWAGInference:
         # Load training data, test data
         ##
         # Create datasets
-        self.train_dataset = Cinc2020Dataset(X_train, y_train, process=True, their=True)
-        self.test_dataset = Cinc2020Dataset(X_test, y_test, process=True, their=True)
+        self.train_dataset = Cinc2020Dataset(X_train, y_train, process=True, the_paper_code=True)
+        self.test_dataset = Cinc2020Dataset(X_test, y_test, process=True, the_paper_code=True)
         self.validation_dataset = Cinc2020Dataset(
-            X_val, y_val, process=True, their=True
+            X_val, y_val, process=True, the_paper_code=True
         )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
@@ -161,6 +161,7 @@ class SWAGInference:
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
+
         epoch = self.epoch
 
         self.theta = {name: param.detach().clone()
@@ -168,12 +169,16 @@ class SWAGInference:
         self.theta_squared = {name: param.detach().clone(
         )**2 for name, param in self.model.named_parameters()}
 
-        self.model.train()
-        with tqdm(
-            self.train_loader,
-            desc=f"\033[32mTraining dilated CNN. Epoch {epoch + 1}/{self.max_num_epochs}\033[0m",
-            total=len(self.train_loader),
-        ) as pbar:
+        for epoch in range(self.max_num_epochs):
+            self.epoch = epoch
+            print(f"Epoch number: {epoch}")
+
+            self.model.train()
+            with tqdm(
+                self.train_loader,
+                desc=f"\033[32mTraining dilated CNN. Epoch {epoch + 1}/{self.max_num_epochs}\033[0m",
+                total=len(self.train_loader),
+            ) as pbar:
                 # Reset predictions
                 self.predictions = []
 
