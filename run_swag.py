@@ -23,6 +23,8 @@ if __name__ == "__main__":
     #     )
     #     quit()
 
+    k = 0 # No stratification
+
     mapping = pd.read_csv("utils/label_mapping_ecgnet_eq.csv", delimiter=";")
     class_mapping = mapping[["SNOMED CT Code", "Training Code"]]
     X, y, classes = cinc_utils.get_xy(
@@ -51,35 +53,25 @@ if __name__ == "__main__":
 
     stratifier = IterativeStratification(n_splits=Config.NUM_FOLDS, order=2)
 
-    for k, (train_indices, validation_indices) in enumerate(stratifier.split(X, y)):
-        print(f"Running fold {k+1}/{Config.NUM_FOLDS}")
-        X_train = X[train_indices]
-        y_train = y[train_indices]
+    print(f"Running fold {k+1}/{Config.NUM_FOLDS}")
 
-        X_validation = X[validation_indices]
-        y_validation = y[validation_indices]
-
-
-        # Create an instance of your SWAGExperiment class
-        swag_experiment = SWAGExperiment(
-            SWAGInference(
-            checkpoint_path,
-            X_train,
-            y_train,
-            X_validation,
-            y_validation,
-            X_test,
-            y_test,
-            classes,
-            classes_test,
-            CV_k=k,
-            )
+    # Create an instance of your SWAGExperiment class
+    swag_experiment = SWAGExperiment(
+        SWAGInference(
+        checkpoint_path,
+        X,
+        y,
+        X_test,
+        y_test,
+        classes,
+        classes_test,
+        CV_k=k,
         )
+    )
 
-        if Config.ONLY_EVAL_TEST_SET:
-            print("Only evaluating test set.")
-            # swag_experiment.evaluate_test_set() # TODO: Implement this
-            break
-        else:
-            print("Running SWAG epochs.")
-            swag_experiment.run()
+    if Config.ONLY_EVAL_TEST_SET:
+        print("Only evaluating test set.")
+        # swag_experiment.evaluate_test_set() # TODO: Implement this
+    else:
+        print("Running SWAG epochs.")
+        swag_experiment.run()

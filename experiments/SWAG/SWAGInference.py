@@ -3,6 +3,7 @@ import collections
 from tqdm import tqdm
 import math
 import os
+import csv
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
@@ -25,8 +26,6 @@ class SWAGInference:
             checkpoint_path, #end: for dilatedCNN
             X_train,
             y_train,
-            X_val,
-            y_val,
             X_test,
             y_test,
             classes,
@@ -38,7 +37,7 @@ class SWAGInference:
         torch.manual_seed(42)
 
         # Define num swag max epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
-        self.swag_max_epochs = Config.SWAG_MAX_EPOCHS
+        self.swag_max_epochs = Config.MAX_NUM_EPOCHS
         self.swag_learning_rate = Config.SWAG_LEARNING_RATE
         self.swag_update_freq = Config.SWAG_UPDATE_FREQ
         self.deviation_matrix_max_rank = Config.DEVIATION_MATRIX_MAX_RANK
@@ -54,15 +53,10 @@ class SWAGInference:
         # Create datasets
         self.train_dataset = Cinc2020Dataset(X_train, y_train, classes=self.classes, root_dir=Config.TRAIN_DATA_DIR, name="train")
         self.test_dataset = Cinc2020Dataset(X_test, y_test, classes=self.classes, root_dir=Config.TEST_DATA_DIR, name="test")
-        self.validation_dataset = Cinc2020Dataset(
-            X_val, y_val, classes=self.classes, root_dir=Config.TRAIN_DATA_DIR, name="val"
-        )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
         self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=True)
-        self.validation_loader = DataLoader(
-            self.validation_dataset, batch_size=128, shuffle=True
-        )
+
 
 
         ##
@@ -118,29 +112,20 @@ class SWAGInference:
 
         self.train_metrics_manager = MetricsManager(
             name="train",
-            num_epochs=self.swag_max_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.train_loader),
             CV_k=self.CV_k,
             classes=self.classes,
-        )
-
-        self.validation_metrics_manager = MetricsManager(
-            name="validation",
-            num_epochs=self.swag_max_epochs,
-            num_classes=self.num_classes,
-            num_batches=len(self.validation_loader),
-            CV_k=self.CV_k,
-            classes=self.classes,
+            Config=Config,
         )
 
         self.test_metrics_manager = MetricsManager(
             name="test",
-            num_epochs=self.swag_max_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.test_loader),
             CV_k=self.CV_k,
             classes=self.classes_test,
+            Config=Config,
         )
 
 
@@ -167,6 +152,8 @@ class SWAGInference:
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
+        self.D.clear() #clear D-matrix
+
         self.theta = {name: param.detach().clone()
                       for name, param in self.model.named_parameters()}
         self.theta_squared = {name: param.detach().clone(
@@ -178,7 +165,7 @@ class SWAGInference:
             self.model.train()
             with tqdm(
                 self.train_loader,
-                desc=f"\033[32mTraining dilated CNN. Epoch {epoch}/{self.swag_max_epochs}\033[0m",
+                desc=f"\033[32mTraining SWAG. Epoch {epoch}/{self.swag_max_epochs}\033[0m",
                 total=len(self.train_loader),
             ) as pbar:
                 # Reset predictions
@@ -233,9 +220,11 @@ class SWAGInference:
 
 
             ### NEW STUFF
+            labels_for_epoch_numpy = [np.array(y_elem) for y_elem in labels_for_epoch]
+
             self.train_metrics_manager.compute_macro_averages(epoch)
             self.train_metrics_manager.compute_challenge_metric(
-                labels_for_epoch, self.predictions, epoch
+                labels_for_epoch_numpy, self.predictions, epoch
             )
             self.train_metrics_manager.report_macro_averages(epoch)
 
@@ -483,16 +472,18 @@ class SWAGInference:
 
         # Ensure y_trues and y_preds are numpy arrays for easy manipulation
         y_preds = y_preds.cpu().detach().numpy().astype(int)
-        y_probs = y_probs.cpu().detach().numpy()
+        y_probs = y_probs.cpu().detach().numpy().round(decimals=2)
 
         # Iterate over each sample
         for filename, y_pred, y_prob in zip(filenames, y_preds, y_probs):
-            # Create a DataFrame for the current sampleo
-
-            # header = [class_name for class_name in labels_map.values()]
-            df = pd.DataFrame(columns=labels_map)
-            df.loc[0] = y_pred
-            df.loc[1] = y_prob
-
-            # Save the DataFrame to a CSV file
-            df.to_csv(os.path.join(output_dir, f"{filename}.csv"), index=False)
+            # Create and open a CSV file for the current sample
+            with open(
+                os.path.join(output_dir, f"{filename}.csv"), mode="w", newline=""
+            ) as file:
+                writer = csv.writer(file)
+                # Write header
+                header = labels_map.tolist()
+                writer.writerow(header)
+                # Write y_pred and y_prob as separate rows
+                writer.writerow(y_pred)
+                writer.writerow(y_prob)
