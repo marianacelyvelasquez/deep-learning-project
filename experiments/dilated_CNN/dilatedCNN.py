@@ -143,9 +143,13 @@ class dilatedCNNExperiment:
             classes=self.classes_test,
         )
 
-    def save_prediction(self, filenames, y_preds, y_probs, subdir):
+    def save_prediction(self, filenames, y_preds, y_probs, epoch, subdir):
         output_dir = os.path.join(
-            Config.OUTPUT_DIR, f"fold_{self.CV_k}", "predictions", subdir
+            Config.OUTPUT_DIR,
+            f"fold_{self.CV_k}",
+            "predictions",
+            f"epoch_{epoch}",
+            subdir,
         )
 
         if not os.path.exists(output_dir):
@@ -263,7 +267,11 @@ class dilatedCNNExperiment:
                     self.predictions.extend(predictions.cpu().detach().tolist())
 
                     self.save_prediction(
-                        filenames, predictions, predictions_probabilities, "train"
+                        filenames,
+                        predictions,
+                        predictions_probabilities,
+                        epoch,
+                        "train",
                     )
 
                     loss.backward()
@@ -354,13 +362,6 @@ class dilatedCNNExperiment:
                             labels, predictions, epoch
                         )
 
-                        # self.save_prediction(
-                        #     filenames,
-                        #     predictions,
-                        #     predictions_probabilities,
-                        #     "validation",
-                        # )
-
                         # TODO: Dont pass config, just use it inside the function.
                         # Do it for all save_label calls.
                         # self.save_label(
@@ -436,7 +437,7 @@ class dilatedCNNExperiment:
                     )
 
                     self.save_prediction(
-                        filenames, predictions, predictions_probabilities, "test"
+                        filenames, predictions, predictions_probabilities, 0, "test"
                     )
                     # self.save_label(
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"

@@ -63,7 +63,7 @@ def worker(device_id):
 
 
 if __name__ == "__main__":
-    device_type, device_count = get_device("cpu")
+    device_type, device_count = get_device()
 
     print("Running dialted_CNN experiment.")
     print("")
@@ -125,5 +125,5 @@ if __name__ == "__main__":
     for thread in threads:
         thread.join()
 
-    task_queue.join()
+    # task_queue.join()
     print("Training complete!")
