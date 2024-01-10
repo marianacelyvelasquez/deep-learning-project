@@ -3,8 +3,10 @@ import sys
 import os
 import torch
 import numpy as np
+import pandas as pd
 from skmultilearn.model_selection import IterativeStratification
 
+import utils.cinc_utils as cinc_utils
 from preprocess_dataset import get_record_paths_and_labels_binary_encoded_list
 from experiments.SWAG.SWAGInference import SWAGInference
 from experiments.SWAG.SWAG import SWAGExperiment  # Import the new class
@@ -21,27 +23,33 @@ if __name__ == "__main__":
     #     )
     #     quit()
 
-    # Load or preprocess your data as needed
-    record_paths_train, labels_train = get_record_paths_and_labels_binary_encoded_list(
-        Config.TRAIN_DATA_DIR
+    mapping = pd.read_csv("utils/label_mapping_ecgnet_eq.csv", delimiter=";")
+    class_mapping = mapping[["SNOMED CT Code", "Training Code"]]
+    X, y, classes = cinc_utils.get_xy(
+        Config.TRAIN_DATA_DIR,
+        max_sample_length=5000,
+        cut_off=True,
+        class_mapping=class_mapping,
     )
-    record_paths_test, labels_test = get_record_paths_and_labels_binary_encoded_list(
-        Config.TEST_DATA_DIR
+
+    X_test, y_test, classes_test = cinc_utils.get_xy(
+        Config.TEST_DATA_DIR,
+        max_sample_length=5000,
+        cut_off=True,
+        class_mapping=class_mapping,
     )
+
+    classes = [str(c) for c in classes]
+    classes_test = [str(c) for c in classes_test]
 
     checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else None
 
-    X = np.array(record_paths_train)
-    y = np.array(labels_train)
-
-    X_test = np.array(record_paths_test)
-    y_test = np.array(labels_test)
 
     # TODO: Fix numpy seeds and torch seeds
     np.random.seed(42)
     torch.manual_seed(42)
 
-    stratifier = IterativeStratification(n_splits=Config.NUM_FOLDS)
+    stratifier = IterativeStratification(n_splits=Config.NUM_FOLDS, order=2)
 
     for k, (train_indices, validation_indices) in enumerate(stratifier.split(X, y)):
         print(f"Running fold {k+1}/{Config.NUM_FOLDS}")
@@ -62,6 +70,8 @@ if __name__ == "__main__":
             y_validation,
             X_test,
             y_test,
+            classes,
+            classes_test,
             CV_k=k,
             )
         )

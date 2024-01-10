@@ -9,7 +9,8 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
 from experiments.SWAG.config import Config
-from dataloaders.cinc2020.dataset import Cinc2020Dataset
+# from dataloaders.cinc2020.dataset import Cinc2020Dataset
+from dataloaders.cinc2020.datasetThePaperCode import Cinc2020Dataset
 from utils.load_model import load_model
 from utils.setup_loss_fn import setup_loss_fn
 from utils.get_device import get_device
@@ -28,27 +29,33 @@ class SWAGInference:
             y_val,
             X_test,
             y_test,
+            classes,
+            classes_test,
             CV_k,
             ) -> None:
 
         #Fix randomness
         torch.manual_seed(42)
 
-        # Define num swag epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
-        self.swag_epochs = Config.SWAG_EPOCHS
+        # Define num swag max epochs, swag LR, swag update freq, deviation matrix max rank, num BMA samples
+        self.swag_max_epochs = Config.SWAG_MAX_EPOCHS
         self.swag_learning_rate = Config.SWAG_LEARNING_RATE
         self.swag_update_freq = Config.SWAG_UPDATE_FREQ
         self.deviation_matrix_max_rank = Config.DEVIATION_MATRIX_MAX_RANK
         self.bma_samples = Config.BMA_SAMPLES
 
+        # Define classes
+        self.classes = classes
+        self.classes_test = classes_test
+
         ##
         # Load training data, test data
         ##
         # Create datasets
-        self.train_dataset = Cinc2020Dataset(X_train, y_train, process=True, the_paper_code=True)
-        self.test_dataset = Cinc2020Dataset(X_test, y_test, process=True, the_paper_code=True)
+        self.train_dataset = Cinc2020Dataset(X_train, y_train, classes=self.classes, root_dir=Config.TRAIN_DATA_DIR, name="train")
+        self.test_dataset = Cinc2020Dataset(X_test, y_test, classes=self.classes, root_dir=Config.TEST_DATA_DIR, name="test")
         self.validation_dataset = Cinc2020Dataset(
-            X_val, y_val, process=True, the_paper_code=True
+            X_val, y_val, classes=self.classes, root_dir=Config.TRAIN_DATA_DIR, name="val"
         )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
@@ -105,35 +112,35 @@ class SWAGInference:
 
         self.CV_k = CV_k
 
-        self.min_num_epochs = Config.MIN_NUM_EPOCHS
-        self.max_num_epochs = Config.MAX_NUM_EPOCHS
-
         self.num_classes = 24
 
         self.predictions = []
 
         self.train_metrics_manager = MetricsManager(
             name="train",
-            num_epochs=self.max_num_epochs,
+            num_epochs=self.swag_max_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.train_loader),
             CV_k=self.CV_k,
+            classes=self.classes,
         )
 
         self.validation_metrics_manager = MetricsManager(
             name="validation",
-            num_epochs=self.max_num_epochs,
+            num_epochs=self.swag_max_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.validation_loader),
             CV_k=self.CV_k,
+            classes=self.classes,
         )
 
         self.test_metrics_manager = MetricsManager(
             name="test",
-            num_epochs=self.max_num_epochs,
+            num_epochs=self.swag_max_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.test_loader),
             CV_k=self.CV_k,
+            classes=self.classes_test,
         )
 
 
@@ -144,7 +151,6 @@ class SWAGInference:
 
         # Update swag diagonal
         for name, param in current_params.items():
-            print(f"Updating {name} with param of shape {param.shape}")
             self.theta[name] = (self.n*self.theta[name] + param)/(self.n + 1)
             self.theta_squared[name] = (
                 self.n*self.theta_squared[name] + param**2)/(self.n + 1)
@@ -161,29 +167,27 @@ class SWAGInference:
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
-
-        epoch = self.epoch
-
         self.theta = {name: param.detach().clone()
                       for name, param in self.model.named_parameters()}
         self.theta_squared = {name: param.detach().clone(
         )**2 for name, param in self.model.named_parameters()}
 
-        for epoch in range(self.max_num_epochs):
-            self.epoch = epoch
+        for epoch in range(self.swag_max_epochs):
             print(f"Epoch number: {epoch}")
 
             self.model.train()
             with tqdm(
                 self.train_loader,
-                desc=f"\033[32mTraining dilated CNN. Epoch {epoch + 1}/{self.max_num_epochs}\033[0m",
+                desc=f"\033[32mTraining dilated CNN. Epoch {epoch}/{self.swag_max_epochs}\033[0m",
                 total=len(self.train_loader),
             ) as pbar:
                 # Reset predictions
                 self.predictions = []
+                labels_for_epoch = []
 
                 for batch_i, (filenames, waveforms, labels) in enumerate(pbar):
                     self.optimizer.zero_grad()
+                    labels_for_epoch.extend(labels)
 
                     # Note: The data is read as a float64 (double precision) array but the model expects float32 (single precision).
                     # So we have to convert it using .float()
@@ -219,12 +223,45 @@ class SWAGInference:
 
                     # Update tqdm postfix with current loss and accuracy
                     pbar.set_postfix(loss=f"\n{loss.item():.3f}")
+                    pbar.update()
 
                     ## End of just updating metrics
 
                 if epoch % self.swag_update_freq == 0:
                     self.n = ( epoch + 1 ) // self.swag_update_freq #Epoch starts at 0 and reaches S-1, but in algo should start at 1 and go to S
                     self.update_swag()
+
+
+            ### NEW STUFF
+            self.train_metrics_manager.compute_macro_averages(epoch)
+            self.train_metrics_manager.compute_challenge_metric(
+                labels_for_epoch, self.predictions, epoch
+            )
+            self.train_metrics_manager.report_macro_averages(epoch)
+
+            checkpoint_dir = os.path.join(
+                Config.OUTPUT_DIR, f"fold_{self.CV_k}", "checkpoints"
+            )
+            if not os.path.exists(checkpoint_dir):
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+            checkpoint_file_path = os.path.join(
+                checkpoint_dir, f"epoch_{epoch + 1}.pt"
+            )
+
+            # Save checkpoint
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": self.model.state_dict(),
+                    "optimizer_state_dict": self.optimizer.state_dict(),
+                    "network_name": "dialted_CNN",
+                    "network_params": self.network_params,
+                },
+                checkpoint_file_path,
+            )
+
+                
 
     def calibrate(self) -> None:
         # TODO: Calibrate model. Ask Ric. For beginning we can just
