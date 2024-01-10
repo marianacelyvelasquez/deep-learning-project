@@ -118,29 +118,29 @@ class dilatedCNNExperiment:
 
         self.train_metrics_manager = MetricsManager(
             name="train",
-            num_epochs=self.max_num_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.train_loader),
             CV_k=self.CV_k,
             classes=self.classes,
+            Config=Config,
         )
 
         self.validation_metrics_manager = MetricsManager(
             name="validation",
-            num_epochs=self.max_num_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.validation_loader),
             CV_k=self.CV_k,
             classes=self.classes,
+            Config=Config,
         )
 
         self.test_metrics_manager = MetricsManager(
             name="test",
-            num_epochs=self.max_num_epochs,
             num_classes=self.num_classes,
             num_batches=len(self.test_loader),
             CV_k=self.CV_k,
             classes=self.classes_test,
+            Config=Config,
         )
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
