@@ -433,10 +433,14 @@ class SWAGInference:
             desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
             total=len(loader),
         ) as pbar:
+            labels_for_epoch = []
+            self.predictions = []
+
             for (batch_i, (filenames, _, labels)), probabilities_chunk in zip(enumerate(pbar), torch.chunk(predicted_test_probabilities, len(loader), dim=1)):
                 ##
                 # Getting info for loss function
                 ##
+                labels_for_epoch.extend(labels)
                 labels = labels.float().to(self.device)
                 # Instead of using the original model, sample a set of parameters
                 # using your SWAG sampling logic (you might need to implement this)
@@ -461,6 +465,13 @@ class SWAGInference:
                 self.save_prediction(
                     filenames, predictions, probabilities_chunk, "test"
                 )
+            self.test_metrics_manager.compute_macro_averages(epoch=0)
+            self.test_metrics_manager.compute_challenge_metric(
+                labels_for_epoch, self.predictions, epoch=0
+            )
+
+            self.test_metrics_manager.report_macro_averages(epoch=0, rewrite=True)
+
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
         output_dir = os.path.join(
