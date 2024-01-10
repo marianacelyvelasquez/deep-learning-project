@@ -16,7 +16,6 @@ from dataloaders.cinc2020.common import labels_map
 from utils.load_optimizer import load_optimizer
 from utils.setup_loss_fn import setup_loss_fn
 from utils.load_model import load_model
-from utils.get_device import get_device
 
 
 class dilatedCNNExperiment:
@@ -31,6 +30,7 @@ class dilatedCNNExperiment:
         classes,
         classes_test,
         CV_k,
+        device,
         checkpoint_path=None,
     ):
         torch.manual_seed(42)
@@ -53,7 +53,7 @@ class dilatedCNNExperiment:
 
         self.CV_k = CV_k
 
-        self.device = get_device()
+        self.device = device
 
         self.classes = classes
         self.classes_test = classes_test
@@ -231,7 +231,7 @@ class dilatedCNNExperiment:
 
             with tqdm(
                 self.train_loader,
-                desc=f"\033[32mTraining dilated CNN. Epoch {epoch +1}/{self.max_num_epochs}\033[0m",
+                desc=f"\033[32m[{self.device.type}:{self.device.index}] Training dilated CNN. Epoch {epoch +1}/{self.max_num_epochs}\033[0m",
                 total=len(self.train_loader),
             ) as pbar:
                 # Reset predictions
@@ -314,7 +314,7 @@ class dilatedCNNExperiment:
 
             with tqdm(
                 self.validation_loader,
-                desc=f"\033[34mEvaluate validation on dilated CNN. Epoch {epoch +1}\033[0m",
+                desc=f"\033[34m[{self.device.type}:{self.device.index}]Evaluate validation on dilated CNN. Epoch {epoch +1}\033[0m",
                 total=len(self.validation_loader),
             ) as pbar:
                 # Reset predictions
@@ -381,9 +381,11 @@ class dilatedCNNExperiment:
                 print("\033[91mstopping early\033[0m")
                 break
 
-        self.train_metrics_manager.plot_loss()
+        # TODO: This doesn't work in a parallelized settings because we can only plot on the main cpu.
+        # self.train_metrics_manager.plot_loss()
 
         self.evaluate_test_set()
+        return
 
     def evaluate_test_set(self):
         labels_stored = []
@@ -392,7 +394,7 @@ class dilatedCNNExperiment:
         self.model.eval()
         with tqdm(
             self.test_loader,
-            desc="\033[33mEvaluate test data on dilated CNN.\033[0m",
+            desc=f"\033[33m[{self.device.type}:{self.device.index}]Evaluate test data on dilated CNN.\033[0m",
             total=len(self.test_loader),
         ) as pbar:
             # Reset predictions
@@ -450,3 +452,5 @@ class dilatedCNNExperiment:
         print(
             f"Run the challenges e valuation code e.g.: python utils/evaluate_12ECG_score.py output/training output/predictions for CV-fold k={self.CV_k}"
         )
+
+        return

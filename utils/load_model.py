@@ -2,11 +2,19 @@ import torch
 import re
 from models.dilated_CNN.model import CausalCNNEncoder as CausalCNNEncoderOld
 
+
+def get_map_location(device):
+    if device.type == "cuda":
+        return f"cuda:{device.index}"
+
+    return device.type
+
+
 def load_model(
-        network_params,
-        device,
-        checkpoint_path,
-        ):
+    network_params,
+    device,
+    checkpoint_path,
+):
     model = CausalCNNEncoderOld(**network_params)
     model = model.to(device)
 
@@ -17,7 +25,7 @@ def load_model(
 
     print(f"Loading pretrained dilated CNN from {checkpoint_path}")
 
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=get_map_location(device))
     checkpoint_dict = checkpoint["model_state_dict"]
     model_state_dict = model.state_dict()
 
@@ -26,10 +34,10 @@ def load_model(
     # Was this simply for experimentation?
     if exclude_modules:
         checkpoint_dict = {
-        k: v
-        for k, v in checkpoint_dict.items()
-        if k in model_state_dict
-        and not any(re.compile(p).match(k) for p in exclude_modules)
+            k: v
+            for k, v in checkpoint_dict.items()
+            if k in model_state_dict
+            and not any(re.compile(p).match(k) for p in exclude_modules)
         }
 
     # overwrite entries in the existing state dict
@@ -49,4 +57,3 @@ def load_model(
             param.requires_grad = False
 
     return model
-
