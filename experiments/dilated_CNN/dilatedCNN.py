@@ -70,7 +70,7 @@ class dilatedCNNExperiment:
 
         # Create datasets
 
-        # THIS IS FOR DATASET THEIR NOT OUR OUR IS A BIT DIFFERENT TO CALL
+        # THIS IS FOR DATASET THE PAPER CODE NOT OUR OUR IS A BIT DIFFERENT TO CALL
         self.train_dataset = Cinc2020Dataset(
             X_train,
             y_train,

@@ -18,6 +18,10 @@ warnings.filterwarnings(
     "ignore", category=UserWarning, module="sklearn.metrics._ranking"
 )
 
+##
+# THIS IS THE MAIN FILE FOR THE DILATED CNN EXPERIMENT FROM THE PAPER CODE
+##
+
 if __name__ == "__main__":
     print("Running dialted_CNN experiment.")
 

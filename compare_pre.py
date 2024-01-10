@@ -286,11 +286,11 @@ if __name__ == "__main__":
             marker=".",
         )
 
-        # Their processed signal
+        # The paper code's processed signal
         axes[i].plot(
             np.arange(start_time, start_time + stop_time * k, k),
             ecg_signal_the_paper_code["waveform"][i, start_time : start_time + stop_time],
-            label="Their Processed",
+            label="The paper code Processed",
             color="red",
             linestyle=":",
             marker=".",
