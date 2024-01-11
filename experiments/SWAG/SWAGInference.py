@@ -11,6 +11,12 @@ from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
 from experiments.SWAG.config import Config
 
+# for parallelization
+import queue
+import multiprocessing
+import time
+import threading
+
 # from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from dataloaders.cinc2020.datasetThePaperCode import Cinc2020Dataset
 from utils.load_model import load_model
@@ -309,28 +315,61 @@ class SWAGInference:
             # per_model_sample_predictions contains a list of all predictions for all models.
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
+
+            num_available_cpus = 8 # how many CPU cores? 
+
+            # Device Selection
+            def get_best_device():
+                if torch.cuda.is_available():
+                    return 'cuda', torch.cuda.device_count()
+                else:
+                    return 'cpu', num_available_cpus
+                
+            device_type, device_count = get_best_device()
+
+            # Task Queue
+            task_queue = queue.Queue()
+
+            # Define a Worker Thread
+            def worker(device_id):
+                while not task_queue.empty():
+                    try:
+                        bma_i = task_queue.get_nowait()
+                    except queue.Empty:
+                        break
+
+                    start = time.time()
+                    print(f"BMA sample {bma_i} starts with time {start}")
+
+                    self.sample_parameters()  # Samples new weights and loads it into our DNN                    
+                    sampled = time.time()
+                    print(f"BMA sample {bma_i} has sampled with time {sampled}, it took so far total: {sampled - start}")
+                    # predictions is the predictions of one model for all samples in loader
+
+                    predictions = self._predict_probabilities_of_model(loader) # Here use CNN+sigmoid obtained probabilities
+                    per_model_sample_predictions.append(predictions)
+
+                    # for some reason it doesn't print the following
+                    end = time.time()
+                    print(f"BMA sample {bma_i} ends with time {end}, it took in total: {end - start}")
+                    task_queue.task_done()
+
+            # Populate the Task Queue
             for bma_i in range(self.bma_samples):
-                print(f"Current BMA sample: {bma_i}")
-                # will do 1. and 2. in this for loop
+                task_queue.put(bma_i)
 
-                self.sample_parameters()  # Samples new weights and loads it into our DNN
+            # Create and start threads
+            threads = []
+            for i in range(device_count):
+                thread = threading.Thread(target=worker, args=(i,))
+                threads.append(thread)
+                thread.start()
 
-                # predictions is the predictions of one model for all samples in loader
+            # Wait for all threads to complete
+            for thread in threads:
+                thread.join()
 
-                predictions = self._predict_probabilities_of_model(
-                    loader
-                )  # Here use CNN+sigmoid obtained probabilities
-
-                per_model_sample_predictions.append(predictions)  # HERE:
-
-            ## TODO: better assertions
-            # assert len(per_model_sample_predictions) == self.bma_samples
-            # assert all(
-            #     isinstance(model_sample_predictions, torch.Tensor)
-            #     and model_sample_predictions.dim() == 2  # N x C # I SHOULD GET AN ERROR HERE -> 3 (?)
-            #     and model_sample_predictions.size(1) == 6 # I SHOULD GET AN ERROR HERE -> 24
-            #     for model_sample_predictions in per_model_sample_predictions
-            # )
+            task_queue.join()
 
             # Add all model predictions together and take the mean
             bma_probabilities = torch.mean(
