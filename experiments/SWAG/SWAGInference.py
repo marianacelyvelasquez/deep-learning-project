@@ -462,7 +462,6 @@ class SWAGInference:
             module.momentum = momentum
 
     def evaluate(self) -> None:
-        breakpoint()
         self.model.eval()
 
         loader = self.test_loader

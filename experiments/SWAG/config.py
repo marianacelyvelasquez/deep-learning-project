@@ -1,6 +1,6 @@
 class Config:
-    BMA_SAMPLES = 30
-    DATA_DIR = "data/cinc2020_processed"
+    BMA_SAMPLES = 3
+    DATA_DIR = "data/tiny_data"
     DEVIATION_MATRIX_MAX_RANK = 15
     EARLY_STOPPING_EPOCHS = 3
     EXP_NAME = "SWAG"
@@ -12,5 +12,5 @@ class Config:
     OUTPUT_DIR = "output_swag"
     SWAG_LEARNING_RATE = 0.001
     SWAG_UPDATE_FREQ = 1
-    TEST_DATA_DIR = "data/cinc2020_processed/testing"
-    TRAIN_DATA_DIR = "data/cinc2020_processed/training"
+    TEST_DATA_DIR = "data/tiny_data"
+    TRAIN_DATA_DIR = "data/tiny_data"
