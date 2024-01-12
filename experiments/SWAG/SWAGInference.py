@@ -347,11 +347,12 @@ class SWAGInference:
                     # predictions is the predictions of one model for all samples in loader
 
                     predictions = self._predict_probabilities_of_model(loader) # Here use CNN+sigmoid obtained probabilities
-                    per_model_sample_predictions.append(predictions)
 
                     # for some reason it doesn't print the following
                     end = time.time()
                     print(f"BMA sample {bma_i} ends with time {end}, it took in total: {end - start}")
+
+                    per_model_sample_predictions.append(predictions)
                     task_queue.task_done()
 
             # Populate the Task Queue
@@ -371,6 +372,7 @@ class SWAGInference:
 
             task_queue.join()
 
+            printf(f"{len(per_model_sample_predictions)}")
             # Add all model predictions together and take the mean
             bma_probabilities = torch.mean(
                 torch.stack(per_model_sample_predictions, dim=0), dim=0
@@ -451,11 +453,15 @@ class SWAGInference:
         self, loader: torch.utils.data.DataLoader
     ) -> torch.Tensor:
         predictions = []
+        print(f"I'm predicting")
         for _, waveforms, _ in loader:
+            print(f"I'm predicting a batch")
             waveforms = waveforms.float().to(self.device)
             predictions.append(self.model(waveforms))
 
+        print(f"I finished predicting")
         predictions = torch.cat(predictions)
+        print(f"Now I'll try to return")
         return F.sigmoid(
             predictions
         )  # TODO: ask Riccardo check how to make sigmoid work - reason is softmax is 1-label-classifier and we are (non-exclusive) multi-label
