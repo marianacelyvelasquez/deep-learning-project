@@ -173,7 +173,7 @@ class dilatedCNNExperiment:
                 writer.writerow(y_pred)
                 writer.writerow(y_prob)
 
-    def save_label(self, filenames):
+    def save_label(self, filenames, dir_name):
         """
         Moves files from data_dir to a subdir in output_dir.
 
@@ -188,7 +188,7 @@ class dilatedCNNExperiment:
 
         # Ensure the output directory and subdirectory exist
         output_dir = os.path.join(
-            current_dir, Config.OUTPUT_DIR, f"fold_{self.CV_k}", "train_data"
+            current_dir, Config.OUTPUT_DIR, f"fold_{self.CV_k}", dir_name
         )
 
         if not os.path.exists(output_dir):
@@ -225,7 +225,13 @@ class dilatedCNNExperiment:
             # we get here is a subset of the one in the data dir.
             # So we have to record it somehow.
 
-            self.save_label(filenames)
+            self.save_label(filenames, "train_data")
+
+        print("Storing validation labels in output folder for later evlauation.")
+        for batch_i, (filenames, waveforms, labels) in enumerate(
+            self.validation_loader
+        ):
+            self.save_label(filenames, "validation_data")
 
         for epoch in range(self.max_num_epochs):
             self.epoch = epoch
@@ -360,6 +366,14 @@ class dilatedCNNExperiment:
                         )
                         self.validation_metrics_manager.update_confusion_matrix(
                             labels, predictions, epoch
+                        )
+
+                        self.save_prediction(
+                            filenames,
+                            predictions,
+                            predictions_probabilities,
+                            epoch,
+                            "validation",
                         )
 
                         # TODO: Dont pass config, just use it inside the function.

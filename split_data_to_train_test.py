@@ -121,7 +121,7 @@ if __name__ == "__main__":
     y = np.array(labels_binary_encoded_list)
 
     if args.tiny is True:
-        train_size = 0.1
+        train_size = 0.05
         test_size = 0.05
 
         # Need to add up to 1.
