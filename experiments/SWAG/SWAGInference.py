@@ -309,8 +309,7 @@ class SWAGInference:
             # per_model_sample_predictions contains a list of all predictions for all models.
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
-            for bma_i in range(self.bma_samples):
-                print(f"Current BMA sample: {bma_i}")
+            for bma_i in tqdm(range(self.bma_samples), desc="Bayesian Model Averaging"):
                 # will do 1. and 2. in this for loop
 
                 self.sample_parameters()  # Samples new weights and loads it into our DNN
