@@ -292,9 +292,7 @@ class SWAGInference:
 
         # TODO: update with CNN etc etc
 
-    def predict_probabilities(
-        self, loader: torch.utils.data.DataLoader
-    ):
+    def predict_probabilities(self, loader: torch.utils.data.DataLoader):
         """
         Goal: Implement Bayesian Model Averaging by doing:
              1. Sample new model from SWAG (call self.sample_parameters())
@@ -319,15 +317,15 @@ class SWAGInference:
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
 
-            num_available_cpus = 8 # how many CPU cores? 
+            num_available_cpus = 8  # how many CPU cores?
 
             # Device Selection
             def get_best_device():
                 if torch.cuda.is_available():
-                    return 'cuda', torch.cuda.device_count()
+                    return "cuda", torch.cuda.device_count()
                 else:
-                    return 'cpu', num_available_cpus
-                
+                    return "cpu", num_available_cpus
+
             device_type, device_count = get_best_device()
 
             # Task Queue
@@ -344,16 +342,22 @@ class SWAGInference:
                     start = time.time()
                     print(f"BMA sample {bma_i} starts with time {start}")
 
-                    self.sample_parameters()  # Samples new weights and loads it into our DNN                    
+                    self.sample_parameters()  # Samples new weights and loads it into our DNN
                     sampled = time.time()
-                    print(f"BMA sample {bma_i} has sampled with time {sampled}, it took so far total: {sampled - start}")
+                    print(
+                        f"BMA sample {bma_i} has sampled with time {sampled}, it took so far total: {sampled - start}"
+                    )
                     # predictions is the predictions of one model for all samples in loader
 
-                    predictions = self._predict_probabilities_of_model(loader) # Here use CNN+sigmoid obtained probabilities
+                    predictions = self._predict_probabilities_of_model(
+                        loader
+                    )  # Here use CNN+sigmoid obtained probabilities
 
                     # for some reason it doesn't print the following
                     end = time.time()
-                    print(f"BMA sample {bma_i} ends with time {end}, it took in total: {end - start}")
+                    print(
+                        f"BMA sample {bma_i} ends with time {end}, it took in total: {end - start}"
+                    )
 
                     per_model_sample_predictions.append(predictions)
                     task_queue.task_done()
@@ -375,7 +379,7 @@ class SWAGInference:
 
             task_queue.join()
 
-            printf(f"{len(per_model_sample_predictions)}")
+            print(f"{len(per_model_sample_predictions)}")
             # Add all model predictions together and take the mean
             bma_probabilities = torch.mean(
                 torch.stack(per_model_sample_predictions, dim=0), dim=0
@@ -449,7 +453,6 @@ class SWAGInference:
 
         with torch.no_grad():
             for _, waveforms, _ in loader:
-
                 waveforms = waveforms.float().to(self.device)
                 predictions.append(self.model(waveforms))
                 del waveforms
@@ -503,15 +506,13 @@ class SWAGInference:
 
         loader = self.test_loader
 
-        predicted_test_probabilities = self.predict_probabilities(
-            loader
-        )
+        predicted_test_probabilities = self.predict_probabilities(loader)
 
         batch_size = loader.batch_size
         num_batches = len(loader)
         remainder = predicted_test_probabilities.size(0) % batch_size
 
-      # all the predicted probabilities of the test set question: is it too big?
+        # all the predicted probabilities of the test set question: is it too big?
         assert len(loader.dataset) == predicted_test_probabilities.size(
             0
         ), "Size mismatch between loader and logits"
@@ -529,7 +530,9 @@ class SWAGInference:
                     # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
 
-                print(f"batch_i: {batch_i}, labels shape: {labels.shape}, probabilities_chunk shape: {probabilities_chunk.shape}")
+                print(
+                    f"batch_i: {batch_i}, labels shape: {labels.shape}, probabilities_chunk shape: {probabilities_chunk.shape}"
+                )
                 ##
                 # Getting info for loss function
                 ##
