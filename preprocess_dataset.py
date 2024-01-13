@@ -188,7 +188,7 @@ def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
     X_1_tot = np.array(record_paths_folder1)
     y_1_tot = np.array(labels_binary_encoded_list_folder1)
 
-    train_size = 0.1
+    train_size = 0.95
     test_size = 0.05
     sample_distribution_per_fold = [
         train_size,
@@ -197,7 +197,7 @@ def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
     ]
 
     stratifier = IterativeStratification(
-        n_splits=3,
+        n_splits=2,
         order=2,
         sample_distribution_per_fold=sample_distribution_per_fold,
     )
