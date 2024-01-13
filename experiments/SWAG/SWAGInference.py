@@ -482,10 +482,12 @@ class SWAGInference:
             desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
             total=num_batches,
         ) as pbar:
+            labels = []
             for (batch_i, (filenames, _, labels)), probabilities_chunk in zip(
                 enumerate(pbar),
                 torch.split(predicted_test_probabilities, batch_size, dim=0),
             ):
+                labels.extend(labels)
                 if batch_i == num_batches - 1 and remainder != 0:
                     # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
@@ -520,6 +522,14 @@ class SWAGInference:
                 self.save_prediction(
                     filenames, predictions, probabilities_chunk, "test"
                 )
+
+        ### NEW STUFF
+        self.test_metrics_manager.compute_macro_averages(epoch=0)
+        self.test_metrics_manager.compute_challenge_metric(
+            labels, self.predictions, epoch=0
+        )
+        self.test_metrics_manager.report_macro_averages(epoch=0, rewrite=True)
+
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
         output_dir = os.path.join(
