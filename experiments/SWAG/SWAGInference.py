@@ -487,7 +487,7 @@ class SWAGInference:
                 enumerate(pbar),
                 torch.split(predicted_test_probabilities, batch_size, dim=0),
             ):
-                labels_total.append(labels)
+                labels_total.extend(labels)
                 if batch_i == num_batches - 1 and remainder != 0:
                     # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
