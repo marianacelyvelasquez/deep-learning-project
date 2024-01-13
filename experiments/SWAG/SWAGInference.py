@@ -403,10 +403,17 @@ class SWAGInference:
                 mean=current_mean, std=torch.ones_like(current_mean)
             )
 
-            current_mean.to(device)
-            current_std.to(device)
+            current_mean = current_mean.to(device)
+            current_std = current_std.to(device)
             z_1 = z_1.to(device)  # move z_1 to same device as current_mean
             z_2 = z_2.to(device)  # move z_2 to (on my local env) mps:0 device
+
+            assert (
+                z_1.device == device
+                and z_2.device == device
+                and current_mean.device == device
+                and current_std.device == device
+            )
 
             print(
                 f"device={device}, current_mean.device: {current_mean.device}, current_std.device: {current_std.device}, z_1.device: {z_1.device}, z_2.device: {z_2.device}"
@@ -427,14 +434,14 @@ class SWAGInference:
             # Compute full covariance matrix by doing D * z_2
             sampled_param += (
                 1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
-            ) * torch.sum(torch.stack([D_i[name] * z_2 for D_i in self.D]))
+            ) * torch.sum(torch.stack([D_i[name].to(device) * z_2 for D_i in self.D]))
 
             # Load sampled params into model
             # Modify weight value in-place; directly changing
             param.data = sampled_param  # param is a reference to the model weights -> here weights are updated
 
         # Update batchnorm
-        self._update_batchnorm()
+        self._update_batchnorm(model, device)
 
     def _create_weight_copy(self) -> None:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
@@ -460,7 +467,7 @@ class SWAGInference:
         sigmoidoo = F.sigmoid(predictions)
         return sigmoidoo
 
-    def _update_batchnorm(self) -> None:
+    def _update_batchnorm(self, model, device) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
         See the SWAG paper for why this is required.
@@ -473,7 +480,7 @@ class SWAGInference:
         """
 
         old_momentum_parameters = dict()
-        for module in self.model.modules():
+        for module in model.modules():
             # Only need to handle batchnorm modules
             if not isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
                 continue
@@ -488,13 +495,13 @@ class SWAGInference:
             #  using the entire training dataset during the inference phase
             module.reset_running_stats()
 
-        self.model.train()
+        model.train()
 
         # Only done for test set PROBABLY TODO: check /!\
         for _, waveforms, _ in self.test_loader:
-            waveforms = waveforms.float().to(self.device)
-            self.model(waveforms)
-        self.model.eval()
+            waveforms = waveforms.float().to(device)
+            model(waveforms)
+        model.eval()
 
         # Restore old `momentum` hyperparameter values
         for module, momentum in old_momentum_parameters.items():
