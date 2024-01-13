@@ -86,8 +86,8 @@ class SWAGInference:
             "kernel_size": 3,
         }
 
-        device_type, device_count = get_device()
-        self.device = torch.device(f"{device_type}:0")
+        self.device_type, self.device_count = get_device()
+        self.device = torch.device(f"{self.device_type}:0")
 
         # Load pretrained dilated CNN
         if checkpoint_path is None:
@@ -317,22 +317,14 @@ class SWAGInference:
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
 
-            num_available_cpus = 8  # how many CPU cores?
-
-            # Device Selection
-            def get_best_device():
-                if torch.cuda.is_available():
-                    return "cuda", torch.cuda.device_count()
-                else:
-                    return "cpu", num_available_cpus
-
-            device_type, device_count = get_best_device()
-
             # Task Queue
             task_queue = queue.Queue()
 
             # Define a Worker Thread
             def worker(device_id):
+                device = torch.device(f"{self.device_type}:{device_id}")
+                model = self.model.to(device)
+
                 while not task_queue.empty():
                     try:
                         bma_i = task_queue.get_nowait()
@@ -342,7 +334,9 @@ class SWAGInference:
                     start = time.time()
                     print(f"BMA sample {bma_i} starts with time {start}")
 
-                    self.sample_parameters()  # Samples new weights and loads it into our DNN
+                    self.sample_parameters(
+                        model
+                    )  # Samples new weights and loads it into our DNN
                     sampled = time.time()
                     print(
                         f"BMA sample {bma_i} has sampled with time {sampled}, it took so far total: {sampled - start}"
@@ -350,7 +344,7 @@ class SWAGInference:
                     # predictions is the predictions of one model for all samples in loader
 
                     predictions = self._predict_probabilities_of_model(
-                        loader
+                        loader, model, device
                     )  # Here use CNN+sigmoid obtained probabilities
 
                     # for some reason it doesn't print the following
@@ -368,7 +362,7 @@ class SWAGInference:
 
             # Create and start threads
             threads = []
-            for i in range(device_count):
+            for i in range(self.device_count):
                 thread = threading.Thread(target=worker, args=(i,))
                 threads.append(thread)
                 thread.start()
@@ -445,16 +439,16 @@ class SWAGInference:
         }
 
     def _predict_probabilities_of_model(
-        self, loader: torch.utils.data.DataLoader
+        self, loader: torch.utils.data.DataLoader, model, device
     ) -> torch.Tensor:
         predictions = []
-        print(f"Entered _predict_probabilities_of_model")
-        assert not self.model.training, "Model should be in eval mode"
+        print("Entered _predict_probabilities_of_model")
+        assert not model.training, "Model should be in eval mode"
 
         with torch.no_grad():
             for _, waveforms, _ in loader:
-                waveforms = waveforms.float().to(self.device)
-                predictions.append(self.model(waveforms))
+                waveforms = waveforms.float().to(device)
+                predictions.append(model(waveforms))
                 del waveforms
 
         predictions = torch.cat(predictions)
@@ -502,8 +496,6 @@ class SWAGInference:
             module.momentum = momentum
 
     def evaluate(self) -> None:
-        self.model.eval()
-
         loader = self.test_loader
 
         predicted_test_probabilities = self.predict_probabilities(loader)
