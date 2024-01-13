@@ -335,7 +335,7 @@ class SWAGInference:
                     print(f"BMA sample {bma_i} starts with time {start}")
 
                     self.sample_parameters(
-                        model
+                        model, device
                     )  # Samples new weights and loads it into our DNN
                     sampled = time.time()
                     print(
@@ -382,7 +382,7 @@ class SWAGInference:
             # assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
             return bma_probabilities
 
-    def sample_parameters(self, model) -> None:
+    def sample_parameters(self, model, device) -> None:
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
         # Loop over each layer in the model (self.model.named_parameters())
@@ -411,15 +411,13 @@ class SWAGInference:
             ## Diagonal part
 
             # Compute diagonal covariance matrix using mean + std * z_1
-            z_1 = z_1.to(current_mean.device)  # move z_1 to same device as current_mean
+            z_1 = z_1.to(device)  # move z_1 to same device as current_mean
             sampled_param = current_mean + (1.0 / math.sqrt(2.0)) * current_std * z_1
 
             ## Full SWAG part
 
             # Compute full covariance matrix by doing D * z_2
-            z_2 = z_2.to(
-                current_mean.device
-            )  # move z_2 to (on my local env) mps:0 device
+            z_2 = z_2.to(device)  # move z_2 to (on my local env) mps:0 device
             sampled_param += (
                 1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
             ) * torch.sum(torch.stack([D_i[name] * z_2 for D_i in self.D]))
