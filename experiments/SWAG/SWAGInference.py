@@ -403,6 +403,9 @@ class SWAGInference:
                 mean=current_mean, std=torch.ones_like(current_mean)
             )
 
+            current_mean.to(device)
+            current_std.to(device)
+
             assert (
                 current_mean.size() == param.size()
                 and current_std.size() == param.size()
