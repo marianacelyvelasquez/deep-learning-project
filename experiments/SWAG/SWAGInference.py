@@ -252,6 +252,9 @@ class SWAGInference:
                     )  # Epoch starts at 0 and reaches S-1, but in algo should start at 1 and go to S
                     self.update_swag()
 
+            # Empty GPU memory after each epoch
+            torch.cuda.empty_cache()
+
             ### NEW STUFF
             labels_for_epoch_numpy = [np.array(y_elem) for y_elem in labels_for_epoch]
 
@@ -291,7 +294,7 @@ class SWAGInference:
 
     def predict_probabilities(
         self, loader: torch.utils.data.DataLoader
-    ):  # NOTE: this function is currently never called -  rewrite based on dilatedCNN, do stacking and appending predictions [implement BMA yourself based on CNN code]
+    ):
         """
         Goal: Implement Bayesian Model Averaging by doing:
              1. Sample new model from SWAG (call self.sample_parameters())
@@ -382,9 +385,6 @@ class SWAGInference:
             return bma_probabilities
 
     def sample_parameters(self) -> None:
-        # Note: Be sure to do the math here correctly!
-        # The solution might have a tiny error in it.
-
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
         # Loop over each layer in the model (self.model.named_parameters())
@@ -432,15 +432,6 @@ class SWAGInference:
 
         # Update batchnorm
         self._update_batchnorm()
-
-    def predict_labels(self) -> None:
-        # TODO: Predict labels. One needs to do much rsearch for this
-        # because now we can return "I don't know" but do we really
-        # want to do that? The challenge score doesn't respect an
-        # "I don't know" label. This could be some extra research
-        # though and we can compute the score for the case where
-        # we ignore those "I don't know" cases.
-        pass
 
     def _create_weight_copy(self) -> None:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
@@ -513,7 +504,13 @@ class SWAGInference:
 
         predicted_test_probabilities = self.predict_probabilities(
             loader
-        )  # all the predicted probabilities of the test set question: is it too big?
+        )
+
+        batch_size = loader.batch_size
+        num_batches = len(loader)
+        remainder = predicted_test_probabilities.size(0) % batch_size
+
+      # all the predicted probabilities of the test set question: is it too big?
         assert len(loader.dataset) == predicted_test_probabilities.size(
             0
         ), "Size mismatch between loader and logits"
@@ -521,12 +518,17 @@ class SWAGInference:
         with tqdm(
             loader,
             desc="\033[33mEvaluating test data with SWAGInference.\033[0m",
-            total=len(loader),
+            total=num_batches,
         ) as pbar:
             for (batch_i, (filenames, _, labels)), probabilities_chunk in zip(
                 enumerate(pbar),
-                torch.chunk(predicted_test_probabilities, len(loader), dim=1),
+                torch.split(predicted_test_probabilities, batch_size, dim=0),
             ):
+                if batch_i == num_batches - 1 and remainder != 0:
+                    # Handle the last chunk with a different size
+                    probabilities_chunk = predicted_test_probabilities[-remainder:]
+
+                print(f"batch_i: {batch_i}, labels shape: {labels.shape}, probabilities_chunk shape: {probabilities_chunk.shape}")
                 ##
                 # Getting info for loss function
                 ##

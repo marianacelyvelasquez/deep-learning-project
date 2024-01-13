@@ -180,7 +180,7 @@ def preprocess_dataset(source_dir: str):
     #     if dest_dir:
     #         copyfile(filename, Path(dest_dir) / filename.name)
 
-
+# data_source_dir_folder1: whole 2020 dataset, data_source_dir_folder2: 2021 chapman-shaoxing dataset
 def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
     # Get lists of paths and labels for folder1
     record_paths_folder1, labels_binary_encoded_list_folder1 = get_record_paths_and_labels_binary_encoded_list(data_source_dir_folder1)
@@ -211,6 +211,7 @@ def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
     train_indexes = splits[0]
     test_indexes = splits[1]
 
+    # record_paths_train_folder1 is 95% of 2020 dataset
     record_paths_train_folder1 = X_1_tot[train_indexes].tolist()
     record_paths_test_folder1 = X_1_tot[test_indexes].tolist()
 
@@ -218,6 +219,7 @@ def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
     record_paths_folder2, labels_binary_encoded_list_folder2 = get_record_paths_and_labels_binary_encoded_list(data_source_dir_folder2)
 
     # Combine record paths for the test set
+    # Test set is 5% of 2020 dataset + the entire 2021 dataset
     record_paths_test = record_paths_test_folder1 + record_paths_folder2
 
     return record_paths_train_folder1, record_paths_test
