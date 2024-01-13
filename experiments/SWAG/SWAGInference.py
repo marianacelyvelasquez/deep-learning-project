@@ -174,8 +174,6 @@ class SWAGInference:
         # run swag epochs amount of epochs
         # for each epoch (resp update freq.) run self.update_swag()
 
-        self.D.clear()  # clear D-matrix
-
         self.theta = {
             name: param.detach().clone()
             for name, param in self.model.named_parameters()
@@ -187,6 +185,7 @@ class SWAGInference:
 
         for epoch in range(self.swag_max_epochs):
             print(f"Epoch number: {epoch}")
+            self.D.clear()  # clear D-matrix
 
             self.model.train()
             with tqdm(
@@ -359,8 +358,8 @@ class SWAGInference:
 
             # Compute mean and std
             current_mean = self.theta[name]
-            current_std = torch.normal(
-                mean=current_mean, std=torch.ones_like(current_mean)
+            current_std = torch.sqrt(
+                torch.clamp(self.theta_squared[name] - current_mean**2, min=1e-10)
             )
 
             assert (
@@ -380,9 +379,10 @@ class SWAGInference:
             z_2 = z_2.to(
                 current_mean.device
             )  # move z_2 to (on my local env) mps:0 device
-            sampled_param += (
-                1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
-            ) * torch.sum(torch.stack([D_i[name] * z_2 for D_i in self.D]))
+            for D_i in self.D:
+                sampled_param += (
+                    1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
+                ) * torch.clamp(D_i[name] * z_2, min=1e-10)
 
             # Load sampled params into model
             # Modify weight value in-place; directly changing
@@ -487,7 +487,7 @@ class SWAGInference:
                 enumerate(pbar),
                 torch.split(predicted_test_probabilities, batch_size, dim=0),
             ):
-                labels_total.extend(labels)
+                labels_total.append(labels)
                 if batch_i == num_batches - 1 and remainder != 0:
                     # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
@@ -529,7 +529,6 @@ class SWAGInference:
             labels_total, self.predictions, epoch=0
         )
         self.test_metrics_manager.report_macro_averages(epoch=0, rewrite=True)
-
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
         output_dir = os.path.join(
