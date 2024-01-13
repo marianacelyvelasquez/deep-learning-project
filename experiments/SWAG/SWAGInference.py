@@ -444,18 +444,19 @@ class SWAGInference:
         self, loader: torch.utils.data.DataLoader
     ) -> torch.Tensor:
         predictions = []
-        print(f"I'm predicting")
-        for _, waveforms, _ in loader:
-            print(f"I'm predicting a batch")
-            waveforms = waveforms.float().to(self.device)
-            predictions.append(self.model(waveforms))
+        print(f"Entered _predict_probabilities_of_model")
+        assert not self.model.training, "Model should be in eval mode"
 
-        print(f"I finished predicting")
+        with torch.no_grad():
+            for _, waveforms, _ in loader:
+
+                waveforms = waveforms.float().to(self.device)
+                predictions.append(self.model(waveforms))
+                del waveforms
+
         predictions = torch.cat(predictions)
-        print(f"Now I'll try to return")
-        return F.sigmoid(
-            predictions
-        )  # TODO: ask Riccardo check how to make sigmoid work - reason is softmax is 1-label-classifier and we are (non-exclusive) multi-label
+        sigmoidoo = F.sigmoid(predictions)
+        return sigmoidoo
 
     def _update_batchnorm(self) -> None:
         """
