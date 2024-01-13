@@ -344,7 +344,7 @@ class SWAGInference:
 
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
-        for name, param in self.network.named_parameters():
+        for name, param in self.model.named_parameters():
             # SWAG-diagonal part
             z_1 = torch.randn(param.size()).to(self.device)
 
