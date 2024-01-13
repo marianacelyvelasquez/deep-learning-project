@@ -382,11 +382,11 @@ class SWAGInference:
             # assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
             return bma_probabilities
 
-    def sample_parameters(self) -> None:
+    def sample_parameters(self, model) -> None:
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
         # Loop over each layer in the model (self.model.named_parameters())
-        for name, param in self.model.named_parameters():
+        for name, param in model.named_parameters():
             # Implementation: Equation (1) of paper A Simple Baseline for Bayesian Uncertainty in Deep Learning
             # SWAG-diagonal part
             # Draw vectors z_1 and z_2 almost randomly
