@@ -344,19 +344,12 @@ class SWAGInference:
 
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
-        # Loop over each layer in the model (self.model.named_parameters())
-        for name, param in self.model.named_parameters():
-            # Implementation: Equation (1) of paper A Simple Baseline for Bayesian Uncertainty in Deep Learning
+        for name, param in self.network.named_parameters():
             # SWAG-diagonal part
-            # Draw vectors z_1 and z_2 almost randomly
-            z_1 = torch.normal(
-                mean=0.0, std=1.0, size=param.size()
-            )  # random sample diagonal
-            z_2 = torch.normal(
-                mean=0.0, std=1.0, size=param.size()
-            )  # random sample full SWAG
+            z_1 = torch.randn(param.size()).to(self.device)
 
-            # Compute mean and std
+            # TODO(1): Sample parameter values for SWAG-diagonal
+            # raise NotImplementedError("Sample parameter for SWAG-diagonal")
             current_mean = self.theta[name]
             current_std = torch.sqrt(
                 torch.clamp(self.theta_squared[name] - current_mean**2, min=1e-10)
@@ -367,26 +360,18 @@ class SWAGInference:
                 and current_std.size() == param.size()
             )
 
-            ## Diagonal part
-
-            # Compute diagonal covariance matrix using mean + std * z_1
-            z_1 = z_1.to(current_mean.device)  # move z_1 to same device as current_mean
+            # Diagonal part
             sampled_param = current_mean + (1.0 / math.sqrt(2.0)) * current_std * z_1
 
-            ## Full SWAG part
+            z_2 = torch.randn(param.size()).to(self.device)
 
-            # Compute full covariance matrix by doing D * z_2
-            z_2 = z_2.to(
-                current_mean.device
-            )  # move z_2 to (on my local env) mps:0 device
             for D_i in self.D:
                 sampled_param += (
                     1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
                 ) * torch.clamp(D_i[name] * z_2, min=1e-10)
 
-            # Load sampled params into model
-            # Modify weight value in-place; directly changing
-            param.data = sampled_param  # param is a reference to the model weights -> here weights are updated
+            # Modify weight value in-place; directly changing self.network
+            param.data = sampled_param
 
         # Update batchnorm
         self._update_batchnorm()
@@ -487,7 +472,7 @@ class SWAGInference:
                 enumerate(pbar),
                 torch.split(predicted_test_probabilities, batch_size, dim=0),
             ):
-                labels_total.append(labels)
+                labels_total.extend(labels)
                 if batch_i == num_batches - 1 and remainder != 0:
                     # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
