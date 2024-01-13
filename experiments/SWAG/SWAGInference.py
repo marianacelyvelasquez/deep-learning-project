@@ -11,12 +11,6 @@ from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
 from experiments.SWAG.config import Config
 
-# for parallelization
-import queue
-import multiprocessing
-import time
-import threading
-
 # from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from dataloaders.cinc2020.datasetThePaperCode import Cinc2020Dataset
 from utils.load_model import load_model
@@ -86,8 +80,8 @@ class SWAGInference:
             "kernel_size": 3,
         }
 
-        self.device_type, self.device_count = get_device()
-        self.device = torch.device(f"{self.device_type}:0")
+        device_type, device_count = get_device()
+        self.device = torch.device(f"{device_type}:0")
 
         # Load pretrained dilated CNN
         if checkpoint_path is None:
@@ -252,9 +246,6 @@ class SWAGInference:
                     )  # Epoch starts at 0 and reaches S-1, but in algo should start at 1 and go to S
                     self.update_swag()
 
-            # Empty GPU memory after each epoch
-            torch.cuda.empty_cache()
-
             ### NEW STUFF
             labels_for_epoch_numpy = [np.array(y_elem) for y_elem in labels_for_epoch]
 
@@ -292,7 +283,9 @@ class SWAGInference:
 
         # TODO: update with CNN etc etc
 
-    def predict_probabilities(self, loader: torch.utils.data.DataLoader):
+    def predict_probabilities(
+        self, loader: torch.utils.data.DataLoader
+    ):  # NOTE: this function is currently never called -  rewrite based on dilatedCNN, do stacking and appending predictions [implement BMA yourself based on CNN code]
         """
         Goal: Implement Bayesian Model Averaging by doing:
              1. Sample new model from SWAG (call self.sample_parameters())
@@ -316,64 +309,29 @@ class SWAGInference:
             # per_model_sample_predictions contains a list of all predictions for all models.
             # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
-
-            # Task Queue
-            task_queue = queue.Queue()
-
-            # Define a Worker Thread
-            def worker(device_id):
-                device = torch.device(f"{self.device_type}:{device_id}")
-                model = self.model.to(device)
-
-                while not task_queue.empty():
-                    try:
-                        bma_i = task_queue.get_nowait()
-                    except queue.Empty:
-                        break
-
-                    start = time.time()
-                    print(f"BMA sample {bma_i} starts with time {start}")
-
-                    self.sample_parameters(
-                        model, device
-                    )  # Samples new weights and loads it into our DNN
-                    sampled = time.time()
-                    print(
-                        f"BMA sample {bma_i} has sampled with time {sampled}, it took so far total: {sampled - start}"
-                    )
-                    # predictions is the predictions of one model for all samples in loader
-
-                    predictions = self._predict_probabilities_of_model(
-                        loader, model, device
-                    )  # Here use CNN+sigmoid obtained probabilities
-
-                    # for some reason it doesn't print the following
-                    end = time.time()
-                    print(
-                        f"BMA sample {bma_i} ends with time {end}, it took in total: {end - start}"
-                    )
-
-                    per_model_sample_predictions.append(predictions)
-                    task_queue.task_done()
-
-            # Populate the Task Queue
             for bma_i in range(self.bma_samples):
-                task_queue.put(bma_i)
+                print(f"Current BMA sample: {bma_i}")
+                # will do 1. and 2. in this for loop
 
-            # Create and start threads
-            threads = []
-            for i in range(self.device_count):
-                thread = threading.Thread(target=worker, args=(i,))
-                threads.append(thread)
-                thread.start()
+                self.sample_parameters()  # Samples new weights and loads it into our DNN
 
-            # Wait for all threads to complete
-            for thread in threads:
-                thread.join()
+                # predictions is the predictions of one model for all samples in loader
 
-            task_queue.join()
+                predictions = self._predict_probabilities_of_model(
+                    loader
+                )  # Here use CNN+sigmoid obtained probabilities
 
-            print(f"{len(per_model_sample_predictions)}")
+                per_model_sample_predictions.append(predictions)  # HERE:
+
+            ## TODO: better assertions
+            # assert len(per_model_sample_predictions) == self.bma_samples
+            # assert all(
+            #     isinstance(model_sample_predictions, torch.Tensor)
+            #     and model_sample_predictions.dim() == 2  # N x C # I SHOULD GET AN ERROR HERE -> 3 (?)
+            #     and model_sample_predictions.size(1) == 6 # I SHOULD GET AN ERROR HERE -> 24
+            #     for model_sample_predictions in per_model_sample_predictions
+            # )
+
             # Add all model predictions together and take the mean
             bma_probabilities = torch.mean(
                 torch.stack(per_model_sample_predictions, dim=0), dim=0
@@ -382,11 +340,14 @@ class SWAGInference:
             # assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
             return bma_probabilities
 
-    def sample_parameters(self, model, device) -> None:
+    def sample_parameters(self) -> None:
+        # Note: Be sure to do the math here correctly!
+        # The solution might have a tiny error in it.
+
         # Instead of acting on a full vector of parameters, all operations can be done on per-layer parameters.
 
         # Loop over each layer in the model (self.model.named_parameters())
-        for name, param in model.named_parameters():
+        for name, param in self.model.named_parameters():
             # Implementation: Equation (1) of paper A Simple Baseline for Bayesian Uncertainty in Deep Learning
             # SWAG-diagonal part
             # Draw vectors z_1 and z_2 almost randomly
@@ -403,22 +364,6 @@ class SWAGInference:
                 mean=current_mean, std=torch.ones_like(current_mean)
             )
 
-            current_mean = current_mean.to(device)
-            current_std = current_std.to(device)
-            z_1 = z_1.to(device)  # move z_1 to same device as current_mean
-            z_2 = z_2.to(device)  # move z_2 to (on my local env) mps:0 device
-
-            assert (
-                z_1.device == device
-                and z_2.device == device
-                and current_mean.device == device
-                and current_std.device == device
-            )
-
-            print(
-                f"device={device}, current_mean.device: {current_mean.device}, current_std.device: {current_std.device}, z_1.device: {z_1.device}, z_2.device: {z_2.device}"
-            )
-
             assert (
                 current_mean.size() == param.size()
                 and current_std.size() == param.size()
@@ -427,21 +372,34 @@ class SWAGInference:
             ## Diagonal part
 
             # Compute diagonal covariance matrix using mean + std * z_1
+            z_1 = z_1.to(current_mean.device)  # move z_1 to same device as current_mean
             sampled_param = current_mean + (1.0 / math.sqrt(2.0)) * current_std * z_1
 
             ## Full SWAG part
 
             # Compute full covariance matrix by doing D * z_2
+            z_2 = z_2.to(
+                current_mean.device
+            )  # move z_2 to (on my local env) mps:0 device
             sampled_param += (
                 1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
-            ) * torch.sum(torch.stack([D_i[name].to(device) * z_2 for D_i in self.D]))
+            ) * torch.sum(torch.stack([D_i[name] * z_2 for D_i in self.D]))
 
             # Load sampled params into model
             # Modify weight value in-place; directly changing
             param.data = sampled_param  # param is a reference to the model weights -> here weights are updated
 
         # Update batchnorm
-        self._update_batchnorm(model, device)
+        self._update_batchnorm()
+
+    def predict_labels(self) -> None:
+        # TODO: Predict labels. One needs to do much rsearch for this
+        # because now we can return "I don't know" but do we really
+        # want to do that? The challenge score doesn't respect an
+        # "I don't know" label. This could be some extra research
+        # though and we can compute the score for the case where
+        # we ignore those "I don't know" cases.
+        pass
 
     def _create_weight_copy(self) -> None:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
@@ -451,23 +409,19 @@ class SWAGInference:
         }
 
     def _predict_probabilities_of_model(
-        self, loader: torch.utils.data.DataLoader, model, device
+        self, loader: torch.utils.data.DataLoader
     ) -> torch.Tensor:
         predictions = []
-        print("Entered _predict_probabilities_of_model")
-        assert not model.training, "Model should be in eval mode"
-
-        with torch.no_grad():
-            for _, waveforms, _ in loader:
-                waveforms = waveforms.float().to(device)
-                predictions.append(model(waveforms))
-                del waveforms
+        for _, waveforms, _ in loader:
+            waveforms = waveforms.float().to(self.device)
+            predictions.append(self.model(waveforms))
 
         predictions = torch.cat(predictions)
-        sigmoidoo = F.sigmoid(predictions)
-        return sigmoidoo
+        return F.sigmoid(
+            predictions
+        )  # TODO: ask Riccardo check how to make sigmoid work - reason is softmax is 1-label-classifier and we are (non-exclusive) multi-label
 
-    def _update_batchnorm(self, model, device) -> None:
+    def _update_batchnorm(self) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
         See the SWAG paper for why this is required.
@@ -480,7 +434,7 @@ class SWAGInference:
         """
 
         old_momentum_parameters = dict()
-        for module in model.modules():
+        for module in self.model.modules():
             # Only need to handle batchnorm modules
             if not isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
                 continue
@@ -495,28 +449,31 @@ class SWAGInference:
             #  using the entire training dataset during the inference phase
             module.reset_running_stats()
 
-        model.train()
+        self.model.train()
 
         # Only done for test set PROBABLY TODO: check /!\
         for _, waveforms, _ in self.test_loader:
-            waveforms = waveforms.float().to(device)
-            model(waveforms)
-        model.eval()
+            waveforms = waveforms.float().to(self.device)
+            self.model(waveforms)
+        self.model.eval()
 
         # Restore old `momentum` hyperparameter values
         for module, momentum in old_momentum_parameters.items():
             module.momentum = momentum
 
     def evaluate(self) -> None:
+        self.model.eval()
+
         loader = self.test_loader
 
-        predicted_test_probabilities = self.predict_probabilities(loader)
+        predicted_test_probabilities = self.predict_probabilities(
+            loader
+        )  # all the predicted probabilities of the test set question: is it too big?
 
         batch_size = loader.batch_size
         num_batches = len(loader)
         remainder = predicted_test_probabilities.size(0) % batch_size
 
-        # all the predicted probabilities of the test set question: is it too big?
         assert len(loader.dataset) == predicted_test_probabilities.size(
             0
         ), "Size mismatch between loader and logits"
@@ -534,9 +491,8 @@ class SWAGInference:
                     # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
 
-                print(
-                    f"batch_i: {batch_i}, labels shape: {labels.shape}, probabilities_chunk shape: {probabilities_chunk.shape}"
-                )
+                # print(f"batch_i: {batch_i}, labels shape: {labels.shape}, probabilities_chunk shape: {probabilities_chunk.shape}")
+
                 ##
                 # Getting info for loss function
                 ##
