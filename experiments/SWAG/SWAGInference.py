@@ -108,13 +108,12 @@ class SWAGInference:
         self.theta = self._create_weight_copy()
         self.theta_squared = self._create_weight_copy()
 
-        # For full SWAG: D-matrix (some transormation of the weights / just the weights - tbd)
         self.D = collections.deque(
             maxlen=self.deviation_matrix_max_rank
-        )  # checkout if that's nice
+        )  
 
-        # Define prediction threshold (used for calibration I think)
-        self.prediction_threshold = 0.5  # TODO: Ric help think of a sensible threshold
+        # Define prediction threshold
+        self.prediction_threshold = 0.5
 
         # set current iteration n - used to compute sigma etc.
         self.n = 0
@@ -169,10 +168,6 @@ class SWAGInference:
         self.D.append(theta_difference)
 
     def fit_swag(self) -> None:
-        # What this should do: init theta and theta_squared
-        # set network in training mode
-        # run swag epochs amount of epochs
-        # for each epoch (resp update freq.) run self.update_swag()
 
         self.theta = {
             name: param.detach().clone()
@@ -242,7 +237,7 @@ class SWAGInference:
                 if epoch % self.swag_update_freq == 0:
                     self.n = (
                         (epoch + 1) // self.swag_update_freq
-                    )  # Epoch starts at 0 and reaches S-1, but in algo should start at 1 and go to S
+                    ) 
                     self.update_swag()
 
             ### NEW STUFF
@@ -274,68 +269,24 @@ class SWAGInference:
                 checkpoint_file_path,
             )
 
-    def calibrate(self) -> None:
-        # TODO: Calibrate model. Ask Ric. For beginning we can just
-        # set the prediction threshold to some value.
-        # Maybe calibration is done with temperature scaling?
-        pass
-
-        # TODO: update with CNN etc etc
-
     def predict_probabilities(
         self, loader: torch.utils.data.DataLoader
-    ):  # NOTE: this function is currently never called -  rewrite based on dilatedCNN, do stacking and appending predictions [implement BMA yourself based on CNN code]
-        """
-        Goal: Implement Bayesian Model Averaging by doing:
-             1. Sample new model from SWAG (call self.sample_parameters())
-             2. Predict probabilities with sampled model
-             3. repeat 1-2 for num_bma_samples times
-             4. Average the probabilities over the num_bma_samples
-        """
-        # :bulb: we have all the weights and the parameters obtained by the SWAG training, let's actually do inference
+    ):
 
         with torch.no_grad():
-            """
-            Evaluate (self.bma_samples different) models on test data; Collect them; Get the mean of it (BMA)
-            """
             self.model.eval()
 
-            # Perform Bayesian model averaging:
-            # Instead of sampling self.bma_samples networks (using self.sample_parameters())
-            # for each datapoint, you can save time by sampling self.bma_samples networks,
-            # and perform inference with each network on all samples in loader.
-
-            # per_model_sample_predictions contains a list of all predictions for all models.
-            # i.e. per_model_sample_predictions = [ predictions_of_model_1, predictions_of_model_2, ...]
             per_model_sample_predictions = []
             for bma_i in tqdm(range(self.bma_samples), desc="Bayesian Model Averaging"):
-                # will do 1. and 2. in this for loop
-
-                self.sample_parameters()  # Samples new weights and loads it into our DNN
-
-                # predictions is the predictions of one model for all samples in loader
-
+                self.sample_parameters() 
                 predictions = self._predict_probabilities_of_model(
                     loader
-                )  # Here use CNN+sigmoid obtained probabilities
+                ) 
+                per_model_sample_predictions.append(predictions) 
 
-                per_model_sample_predictions.append(predictions)  # HERE:
-
-            ## TODO: better assertions
-            # assert len(per_model_sample_predictions) == self.bma_samples
-            # assert all(
-            #     isinstance(model_sample_predictions, torch.Tensor)
-            #     and model_sample_predictions.dim() == 2  # N x C # I SHOULD GET AN ERROR HERE -> 3 (?)
-            #     and model_sample_predictions.size(1) == 6 # I SHOULD GET AN ERROR HERE -> 24
-            #     for model_sample_predictions in per_model_sample_predictions
-            # )
-
-            # Add all model predictions together and take the mean
             bma_probabilities = torch.mean(
                 torch.stack(per_model_sample_predictions, dim=0), dim=0
-            )  # this is the difference between swag and cnndilated
-
-            # assert bma_probabilities.dim() == 2 and bma_probabilities.size(1) == 6  # N x C
+            ) 
             return bma_probabilities
 
     def sample_parameters(self) -> None:
@@ -348,8 +299,6 @@ class SWAGInference:
             # SWAG-diagonal part
             z_1 = torch.randn(param.size()).to(self.device)
 
-            # TODO(1): Sample parameter values for SWAG-diagonal
-            # raise NotImplementedError("Sample parameter for SWAG-diagonal")
             current_mean = self.theta[name]
             current_std = torch.sqrt(
                 torch.clamp(self.theta_squared[name] - current_mean**2, min=1e-10)
@@ -360,7 +309,6 @@ class SWAGInference:
                 and current_std.size() == param.size()
             )
 
-            # Diagonal part
             sampled_param = current_mean + (1.0 / math.sqrt(2.0)) * current_std * z_1
 
             z_2 = torch.randn(param.size()).to(self.device)
@@ -370,20 +318,9 @@ class SWAGInference:
                     1.0 / math.sqrt(2 * self.deviation_matrix_max_rank - 1)
                 ) * torch.clamp(D_i[name] * z_2, min=1e-10)
 
-            # Modify weight value in-place; directly changing self.network
             param.data = sampled_param
 
-        # Update batchnorm
         self._update_batchnorm()
-
-    def predict_labels(self) -> None:
-        # TODO: Predict labels. One needs to do much rsearch for this
-        # because now we can return "I don't know" but do we really
-        # want to do that? The challenge score doesn't respect an
-        # "I don't know" label. This could be some extra research
-        # though and we can compute the score for the case where
-        # we ignore those "I don't know" cases.
-        pass
 
     def _create_weight_copy(self) -> None:
         """Create an all-zero copy of the network weights as a dictionary that maps name -> weight (matrix)"""
@@ -403,8 +340,7 @@ class SWAGInference:
         predictions = torch.cat(predictions)
         return F.sigmoid(
             predictions
-        )  # TODO: ask Riccardo check how to make sigmoid work - reason is softmax is 1-label-classifier and we are (non-exclusive) multi-label
-
+        )
     def _update_batchnorm(self) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
@@ -452,7 +388,12 @@ class SWAGInference:
 
         predicted_test_probabilities = self.predict_probabilities(
             loader
-        )  # all the predicted probabilities of the test set question: is it too big?
+            )
+        
+        # Calibration bins
+        bins = np.linspace(0, 1, 11)
+        bin_counts = {label: np.zeros(len(bins) - 1) for label in range(len(labels_map))}
+        bin_sums = {label: np.zeros(len(bins) - 1) for label in range(len(labels_map))}
 
         batch_size = loader.batch_size
         num_batches = len(loader)
@@ -474,25 +415,14 @@ class SWAGInference:
             ):
                 labels_total.extend(labels)
                 if batch_i == num_batches - 1 and remainder != 0:
-                    # Handle the last chunk with a different size
                     probabilities_chunk = predicted_test_probabilities[-remainder:]
 
-                # print(f"batch_i: {batch_i}, labels shape: {labels.shape}, probabilities_chunk shape: {probabilities_chunk.shape}")
-
-                ##
-                # Getting info for loss function
-                ##
                 labels = labels.float().to(self.device)
-                # Instead of using the original model, sample a set of parameters
-                # using your SWAG sampling logic (you might need to implement this)
-                # Similar to the original model, compute the loss on the logits
-                ##
                 predicted_test_logits_chunk = torch.logit(probabilities_chunk)
 
                 loss = self.loss_fn(
                     predicted_test_logits_chunk, labels, self.model.training
                 )
-                ##
 
                 # this means threshold = 0.5
                 predictions = torch.round(probabilities_chunk)
@@ -508,7 +438,40 @@ class SWAGInference:
                     filenames, predictions, probabilities_chunk, "test"
                 )
 
-        ### NEW STUFF
+                # Assign probabilities to bins and count occurrences
+                for label in range(len(labels_map)):
+                    probs = probabilities_chunk[:, label]
+                    actuals = labels[:, label]
+                    for b in range(len(bins) - 1):
+                        in_bin = (probs >= bins[b]) & (probs < bins[b + 1])
+                        bin_counts[label][b] += in_bin.sum().item()
+                        bin_sums[label][b] += actuals[in_bin].sum().item()
+
+        # Calculate and save calibration data
+        calibration_data = {}
+        for label in range(len(labels_map)):
+            calibration_data[labels_map[label]] = {
+                'bin': [],
+                'predicted_probability': [],
+                'actual_frequency': []
+            }
+            for b in range(len(bins) - 1):
+                if bin_counts[label][b] > 0:
+                    actual_freq = bin_sums[label][b] / bin_counts[label][b]
+                    pred_prob = (bins[b] + bins[b + 1]) / 2
+                    calibration_data[labels_map[label]]['bin'].append(f"{bins[b]}-{bins[b+1]}")
+                    calibration_data[labels_map[label]]['predicted_probability'].append(pred_prob)
+                    calibration_data[labels_map[label]]['actual_frequency'].append(actual_freq)
+
+        # Export calibration data to CSV
+        for label, data in calibration_data.items():
+            output_path = os.path.join(Config.OUTPUT_DIR, f"calibration_{label}.csv")
+            with open(output_path, 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=['bin', 'predicted_probability', 'actual_frequency'])
+                writer.writeheader()
+                for i in range(len(data['bin'])):
+                    writer.writerow({k: data[k][i] for k in data})
+
         self.test_metrics_manager.compute_macro_averages(epoch=0)
         self.test_metrics_manager.compute_challenge_metric(
             labels_total, self.predictions, epoch=0
