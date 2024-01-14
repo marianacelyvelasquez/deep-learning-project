@@ -402,8 +402,56 @@ class dilatedCNNExperiment:
         self.evaluate_test_set()
         return
 
+    def calculate_and_store_calibration_data(self, bins, bin_counts, bin_sums):
+        # Calculate and save calibration data
+        calibration_data = {}
+        for label in range(len(labels_map)):
+            calibration_data[labels_map[label]] = {
+                "bin": [],
+                "predicted_probability": [],
+                "actual_frequency": [],
+            }
+            for b in range(len(bins) - 1):
+                if bin_counts[label][b] > 0:
+                    actual_freq = bin_sums[label][b] / bin_counts[label][b]
+                    pred_prob = (bins[b] + bins[b + 1]) / 2
+                    calibration_data[labels_map[label]]["bin"].append(
+                        f"{bins[b]}-{bins[b+1]}"
+                    )
+                    calibration_data[labels_map[label]]["predicted_probability"].append(
+                        pred_prob
+                    )
+                    calibration_data[labels_map[label]]["actual_frequency"].append(
+                        actual_freq
+                    )
+
+        # Export calibration data to CSV
+        for label, data in calibration_data.items():
+            output_path = os.path.join(
+                Config.OUTPUT_DIR,
+                f"fold_{self.CV_k}",
+                "metrics",
+                "calibration_measurements",
+                f"calibration_{label}.csv",
+            )
+            with open(output_path, "w", newline="") as csvfile:
+                writer = csv.DictWriter(
+                    csvfile,
+                    fieldnames=["bin", "predicted_probability", "actual_frequency"],
+                )
+                writer.writeheader()
+                for i in range(len(data["bin"])):
+                    writer.writerow({k: data[k][i] for k in data})
+
     def evaluate_test_set(self):
         labels_stored = []
+
+        # Calibration bins
+        bins = np.linspace(0, 1, 11)
+        bin_counts = {
+            label: np.zeros(len(bins) - 1) for label in range(len(labels_map))
+        }
+        bin_sums = {label: np.zeros(len(bins) - 1) for label in range(len(labels_map))}
 
         # TEST set evaluation
         self.model.eval()
@@ -457,6 +505,16 @@ class dilatedCNNExperiment:
                     #     filenames, Config.DATA_DIR, Config.OUTPUT_DIR, "test"
                     # )
 
+                    # Assign probabilities to bins and count occurrences
+                    for label in range(len(labels_map)):
+                        probs = predictions_probabilities[:, label]
+                        actuals = labels[:, label]
+                        for b in range(len(bins) - 1):
+                            in_bin = (probs >= bins[b]) & (probs < bins[b + 1])
+                            bin_counts[label][b] += in_bin.sum().item()
+                            bin_sums[label][b] += actuals[in_bin].sum().item()
+
+            self.calculate_and_store_calibration_data(bins, bin_counts, bin_sums)
             self.test_metrics_manager.compute_macro_averages(epoch=0)
             self.test_metrics_manager.compute_challenge_metric(
                 self.labels, self.predictions, epoch=0

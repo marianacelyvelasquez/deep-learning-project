@@ -66,7 +66,7 @@ class SWAGInference:
         )
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=128, shuffle=True)
-        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=True)
+        self.test_loader = DataLoader(self.test_dataset, batch_size=128, shuffle=False)
 
         ##
         # Load model
@@ -108,9 +108,7 @@ class SWAGInference:
         self.theta = self._create_weight_copy()
         self.theta_squared = self._create_weight_copy()
 
-        self.D = collections.deque(
-            maxlen=self.deviation_matrix_max_rank
-        )  
+        self.D = collections.deque(maxlen=self.deviation_matrix_max_rank)
 
         # Define prediction threshold
         self.prediction_threshold = 0.5
@@ -168,7 +166,6 @@ class SWAGInference:
         self.D.append(theta_difference)
 
     def fit_swag(self) -> None:
-
         self.theta = {
             name: param.detach().clone()
             for name, param in self.model.named_parameters()
@@ -235,9 +232,7 @@ class SWAGInference:
                     ## End of just updating metrics
 
                 if epoch % self.swag_update_freq == 0:
-                    self.n = (
-                        (epoch + 1) // self.swag_update_freq
-                    ) 
+                    self.n = (epoch + 1) // self.swag_update_freq
                     self.update_swag()
 
             ### NEW STUFF
@@ -269,24 +264,19 @@ class SWAGInference:
                 checkpoint_file_path,
             )
 
-    def predict_probabilities(
-        self, loader: torch.utils.data.DataLoader
-    ):
-
+    def predict_probabilities(self, loader: torch.utils.data.DataLoader):
         with torch.no_grad():
             self.model.eval()
 
             per_model_sample_predictions = []
             for bma_i in tqdm(range(self.bma_samples), desc="Bayesian Model Averaging"):
-                self.sample_parameters() 
-                predictions = self._predict_probabilities_of_model(
-                    loader
-                ) 
-                per_model_sample_predictions.append(predictions) 
+                self.sample_parameters()
+                predictions = self._predict_probabilities_of_model(loader)
+                per_model_sample_predictions.append(predictions)
 
             bma_probabilities = torch.mean(
                 torch.stack(per_model_sample_predictions, dim=0), dim=0
-            ) 
+            )
             return bma_probabilities
 
     def sample_parameters(self) -> None:
@@ -338,9 +328,8 @@ class SWAGInference:
             predictions.append(self.model(waveforms))
 
         predictions = torch.cat(predictions)
-        return F.sigmoid(
-            predictions
-        )
+        return F.sigmoid(predictions)
+
     def _update_batchnorm(self) -> None:
         """
         Reset and fit batch normalization statistics using the training dataset self.train_dataset.
@@ -386,13 +375,13 @@ class SWAGInference:
 
         loader = self.test_loader
 
-        predicted_test_probabilities = self.predict_probabilities(
-            loader
-            )
-        
+        predicted_test_probabilities = self.predict_probabilities(loader)
+
         # Calibration bins
         bins = np.linspace(0, 1, 11)
-        bin_counts = {label: np.zeros(len(bins) - 1) for label in range(len(labels_map))}
+        bin_counts = {
+            label: np.zeros(len(bins) - 1) for label in range(len(labels_map))
+        }
         bin_sums = {label: np.zeros(len(bins) - 1) for label in range(len(labels_map))}
 
         batch_size = loader.batch_size
@@ -451,25 +440,40 @@ class SWAGInference:
         calibration_data = {}
         for label in range(len(labels_map)):
             calibration_data[labels_map[label]] = {
-                'bin': [],
-                'predicted_probability': [],
-                'actual_frequency': []
+                "bin": [],
+                "predicted_probability": [],
+                "actual_frequency": [],
             }
             for b in range(len(bins) - 1):
                 if bin_counts[label][b] > 0:
                     actual_freq = bin_sums[label][b] / bin_counts[label][b]
                     pred_prob = (bins[b] + bins[b + 1]) / 2
-                    calibration_data[labels_map[label]]['bin'].append(f"{bins[b]}-{bins[b+1]}")
-                    calibration_data[labels_map[label]]['predicted_probability'].append(pred_prob)
-                    calibration_data[labels_map[label]]['actual_frequency'].append(actual_freq)
+                    calibration_data[labels_map[label]]["bin"].append(
+                        f"{bins[b]}-{bins[b+1]}"
+                    )
+                    calibration_data[labels_map[label]]["predicted_probability"].append(
+                        pred_prob
+                    )
+                    calibration_data[labels_map[label]]["actual_frequency"].append(
+                        actual_freq
+                    )
 
         # Export calibration data to CSV
         for label, data in calibration_data.items():
-            output_path = os.path.join(Config.OUTPUT_DIR, f"calibration_{label}.csv")
-            with open(output_path, 'w', newline='') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=['bin', 'predicted_probability', 'actual_frequency'])
+            output_path = os.path.join(
+                Config.OUTPUT_DIR,
+                "fold_0",
+                "metrics",
+                "calibration_measurements",
+                f"calibration_{label}.csv",
+            )
+            with open(output_path, "w", newline="") as csvfile:
+                writer = csv.DictWriter(
+                    csvfile,
+                    fieldnames=["bin", "predicted_probability", "actual_frequency"],
+                )
                 writer.writeheader()
-                for i in range(len(data['bin'])):
+                for i in range(len(data["bin"])):
                     writer.writerow({k: data[k][i] for k in data})
 
         self.test_metrics_manager.compute_macro_averages(epoch=0)
