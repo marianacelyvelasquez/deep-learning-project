@@ -58,49 +58,30 @@ def get_record_paths_and_labels_binary_encoded_list(
     return record_paths, labels_binary_encoded_list
 
 
-# data_source_dir_folder1: whole 2020 dataset, data_source_dir_folder2: 2021 chapman-shaoxing dataset
-def compose_test_set(data_source_dir_folder1, data_source_dir_folder2):
-    # Get lists of paths and labels for folder1
-    record_paths_folder1, labels_binary_encoded_list_folder1 = get_record_paths_and_labels_binary_encoded_list(data_source_dir_folder1)
+# data_source_dir_folder1: whole 2020 dataset, data_source_dir_folder2: 2021 chapman-shaoxing (CS) dataset
+def compose_test_set(folder_A, folder_B):
+    train_records = []
+    test_records = []
 
-    X_1_tot = np.array(record_paths_folder1)
-    y_1_tot = np.array(labels_binary_encoded_list_folder1)
+    # Iterate over subfolders in folder A
+    for subfolder in Path(folder_A).iterdir():
+        if subfolder.is_dir():
+            record_paths, labels_binary_encoded = get_record_paths_and_labels_binary_encoded_list(subfolder)
 
-    train_size = 0.95
-    test_size = 0.05
-    sample_distribution_per_fold = [
-        train_size,
-        test_size,
-        1 - train_size - test_size,
-    ]
+            X = np.array(record_paths)
+            y = np.array(labels_binary_encoded)
 
-    stratifier = IterativeStratification(
-        n_splits=2,
-        order=2,
-        sample_distribution_per_fold=sample_distribution_per_fold,
-    )
+            train_size = 0.95
+            test_size = 0.05
+            stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[train_size, test_size])
 
-    splits = []
-    for _, set_indexes in stratifier.split(X_1_tot, y_1_tot):
-        # get X and y for this fold
-        # print(f" set_indexes: {set_indexes} \n ")
-        splits.append(set_indexes)
+            for train_indexes, test_indexes in stratifier.split(X, y):
+                train_records.extend(X[train_indexes].tolist())
+                test_records.extend(X[test_indexes].tolist())
 
-    train_indexes = splits[0]
-    test_indexes = splits[1]
-
-    # record_paths_train_folder1 is 95% of 2020 dataset
-    record_paths_train_folder1 = X_1_tot[train_indexes].tolist()
-    record_paths_test_folder1 = X_1_tot[test_indexes].tolist()
-
-    # Get lists of paths and labels for folder2
-    record_paths_folder2, labels_binary_encoded_list_folder2 = get_record_paths_and_labels_binary_encoded_list(data_source_dir_folder2)
-
-    # Combine record paths for the test set
-    # Test set is 5% of 2020 dataset + the entire 2021 dataset
-    record_paths_test = record_paths_test_folder1 + record_paths_folder2
-
-    return record_paths_train_folder1, record_paths_test
+    # Add all records from folder B to the test set
+    record_paths_folder_B, _ = get_record_paths_and_labels_binary_encoded_list(folder_B)
+    test_records.extend(record_paths_folder_B)
 
 # This is the part of the script that handles command line arguments
 if __name__ == "__main__":
