@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
 from dataloaders.cinc2020.common import labels_map
 from utils.load_optimizer import load_optimizer
-from utils.setup_loss_fn import setup_loss_fn
+from utils.setup_loss_fn import setup_loss_fn, get_label_frequencies
 from utils.load_model import load_model
 
 
@@ -410,42 +410,63 @@ class dilatedCNNExperiment:
                 "bin": [],
                 "predicted_probability": [],
                 "actual_frequency": [],
+                "absolute_occurrences": [],
+                "total_samples_in_bin": [],
             }
             for b in range(len(bins) - 1):
+                pred_prob = (bins[b] + bins[b + 1]) / 2
+                calibration_data[labels_map[label]]["bin"].append(
+                    b + 1
+                )  # Numeric bin labeling
+                calibration_data[labels_map[label]]["predicted_probability"].append(
+                    pred_prob
+                )
+
+                # Handle bins with zero occurrences
                 if bin_counts[label][b] > 0:
                     actual_freq = bin_sums[label][b] / bin_counts[label][b]
-                    pred_prob = (bins[b] + bins[b + 1]) / 2
-                    calibration_data[labels_map[label]]["bin"].append(
-                        f"{bins[b]}-{bins[b+1]}"
-                    )
-                    calibration_data[labels_map[label]]["predicted_probability"].append(
-                        pred_prob
-                    )
-                    calibration_data[labels_map[label]]["actual_frequency"].append(
-                        actual_freq
-                    )
+                else:
+                    actual_freq = 0
+
+                calibration_data[labels_map[label]]["actual_frequency"].append(
+                    actual_freq
+                )
+                calibration_data[labels_map[label]]["absolute_occurrences"].append(
+                    bin_sums[label][b]
+                )
+                calibration_data[labels_map[label]]["total_samples_in_bin"].append(
+                    bin_counts[label][b]
+                )
 
         # Export calibration data to CSV
         for label, data in calibration_data.items():
             output_path = os.path.join(
                 Config.OUTPUT_DIR,
-                f"fold_{self.CV_k}",
+                "fold_0",
                 "metrics",
                 "calibration_measurements",
                 f"calibration_{label}.csv",
             )
+
+            if not os.path.exists(os.path.dirname(output_path)):
+                os.makedirs(os.path.dirname(output_path))
+
             with open(output_path, "w", newline="") as csvfile:
                 writer = csv.DictWriter(
                     csvfile,
-                    fieldnames=["bin", "predicted_probability", "actual_frequency"],
+                    fieldnames=[
+                        "bin",
+                        "predicted_probability",
+                        "actual_frequency",
+                        "absolute_occurrences",
+                        "total_samples_in_bin",
+                    ],
                 )
                 writer.writeheader()
                 for i in range(len(data["bin"])):
                     writer.writerow({k: data[k][i] for k in data})
 
     def evaluate_test_set(self):
-        labels_stored = []
-
         # Calibration bins
         bins = np.linspace(0, 1, 11)
         bin_counts = {
