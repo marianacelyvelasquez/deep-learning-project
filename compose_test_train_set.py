@@ -41,7 +41,7 @@ def get_record_paths_and_labels_binary_encoded_list(
 
         for filename in filenames:
             if filename.endswith(".hea"):
-                record_path = os.path.join(dirpath, filename.split(".")[0])
+                record_path = os.path.relpath(os.path.join(dirpath, filename.split(".")[0]))
                 record_paths.append(record_path)
 
                 # Get labels from the content of the .hea file
@@ -53,38 +53,56 @@ def get_record_paths_and_labels_binary_encoded_list(
                     print(f"Error reading record {record_path}: {e}")
 
     print(
-        f"Record paths length: {len(record_paths)} \nLabels length: {len(labels_binary_encoded_list)} \n"
+        f"Record paths length for ${input_dir}: {len(record_paths)} \nLabels length: {len(labels_binary_encoded_list)} \n"
     )
     return record_paths, labels_binary_encoded_list
 
 
-# data_source_dir_folder1: whole 2020 dataset, data_source_dir_folder2: 2021 chapman-shaoxing (CS) dataset
-def compose_test_set(folder_A, folder_B):
+# data_source_dir_folder1: whole 2020 dataset flattened by sources, data_source_dir_folder2: 2021 chapman-shaoxing flattened (CS) dataset
+def compose_test_set(folder_A: str, folder_B: str):
     train_records = []
     test_records = []
+    train_size = 0.95
+    test_size = 0.05
+    # stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[train_size, test_size])
 
     # Iterate over subfolders in folder A
-    for subfolder_Ai in Path(folder_A).iterdir():
-        if subfolder_Ai.is_dir():
-            # Iterate over sub-subfolders in each A_i
-            for subfolder in Path(subfolder_Ai).iterdir():
-                if subfolder.is_dir():
-                    record_paths, labels_binary_encoded = get_record_paths_and_labels_binary_encoded_list(subfolder)
+    for subfolder in Path(folder_A).iterdir():
+        if subfolder.is_dir():
+            record_paths, labels_binary_encoded = get_record_paths_and_labels_binary_encoded_list(subfolder)
+            print(f"First record path: {record_paths[0]}")
 
-                    X = np.array(record_paths)
-                    y = np.array(labels_binary_encoded)
+            X = np.array(record_paths)
+            y = np.array(labels_binary_encoded)
 
-                    train_size = 0.95
-                    test_size = 0.05
-                    stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[train_size, test_size])
 
-                    for train_indexes, test_indexes in stratifier.split(X, y):
-                        train_records.extend(X[train_indexes].tolist())
-                        test_records.extend(X[test_indexes].tolist())
+            stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[test_size, train_size])
+            train_indexes, test_indexes = next(stratifier.split(X, y))
+
+            print(f"Length of train_indexes: {len(train_indexes)}, length of test_indexes: {len(test_indexes)}")
+
+            train_records.extend(X[train_indexes].tolist())
+            test_records.extend(X[test_indexes].tolist())
+
+            print(f"Length of train_records: {len(train_records)}, length of test_records: {len(test_records)}")
 
     # Add all records from folder B to the test set
     record_paths_folder_B, _ = get_record_paths_and_labels_binary_encoded_list(folder_B)
     test_records.extend(record_paths_folder_B)
+
+    return train_records, test_records
+
+def create_symlink(src_path, dest_dir):
+    """
+    Create a symbolic link to the source file in the destination directory.
+    """
+    dest_path = os.path.join(dest_dir, os.path.basename(src_path))
+
+    if not os.path.exists(dest_path):  # Check if symlink already exists
+        os.symlink(os.path.abspath(src_path), dest_path)
+    else:
+        print(f"Symlink {dest_path} already exists. Skipping.")
+
 
 # This is the part of the script that handles command line arguments
 if __name__ == "__main__":
@@ -93,27 +111,25 @@ if __name__ == "__main__":
     np.random.seed(42)
 
     if len(sys.argv) == 3:
-        print("\n Entering pre-processing mode \n")
+        print("\n Entering composing tests mode \n")
         data_source_dir_folder1 = sys.argv[1]
         data_source_dir_folder2 = sys.argv[2]
 
         train_data_dir = Config.TRAIN_DATA_DIR
         test_data_dir = Config.TEST_DATA_DIR
 
-        if not os.path.exists(train_data_dir):
-            os.makedirs(train_data_dir)
-
-        if not os.path.exists(test_data_dir):
-            os.makedirs(test_data_dir)
+        # Create the destination directories if they do not exist
+        os.makedirs(train_data_dir, exist_ok=True)
+        os.makedirs(test_data_dir, exist_ok=True)
 
         # Call the new function to compose the stratified test set
         record_paths_train, record_paths_test = compose_test_set(data_source_dir_folder1, data_source_dir_folder2)
 
-        # Move files to the specified directories
+        # Copy files to the specified directories
         for record_path in record_paths_train:
-            shutil.move(record_path, train_data_dir)
+            create_symlink(record_path, train_data_dir)
 
         for record_path in record_paths_test:
-            shutil.move(record_path, test_data_dir)
+            create_symlink(record_path, test_data_dir)
     else:
         print("Usage: python preprocess_dataset.py <data_source_dir_folder1> <data_source_dir_folder2>")
