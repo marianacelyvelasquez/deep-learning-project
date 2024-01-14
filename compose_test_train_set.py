@@ -64,20 +64,23 @@ def compose_test_set(folder_A, folder_B):
     test_records = []
 
     # Iterate over subfolders in folder A
-    for subfolder in Path(folder_A).iterdir():
-        if subfolder.is_dir():
-            record_paths, labels_binary_encoded = get_record_paths_and_labels_binary_encoded_list(subfolder)
+    for subfolder_Ai in Path(folder_A).iterdir():
+        if subfolder_Ai.is_dir():
+            # Iterate over sub-subfolders in each A_i
+            for subfolder in Path(subfolder_Ai).iterdir():
+                if subfolder.is_dir():
+                    record_paths, labels_binary_encoded = get_record_paths_and_labels_binary_encoded_list(subfolder)
 
-            X = np.array(record_paths)
-            y = np.array(labels_binary_encoded)
+                    X = np.array(record_paths)
+                    y = np.array(labels_binary_encoded)
 
-            train_size = 0.95
-            test_size = 0.05
-            stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[train_size, test_size])
+                    train_size = 0.95
+                    test_size = 0.05
+                    stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[train_size, test_size])
 
-            for train_indexes, test_indexes in stratifier.split(X, y):
-                train_records.extend(X[train_indexes].tolist())
-                test_records.extend(X[test_indexes].tolist())
+                    for train_indexes, test_indexes in stratifier.split(X, y):
+                        train_records.extend(X[train_indexes].tolist())
+                        test_records.extend(X[test_indexes].tolist())
 
     # Add all records from folder B to the test set
     record_paths_folder_B, _ = get_record_paths_and_labels_binary_encoded_list(folder_B)
