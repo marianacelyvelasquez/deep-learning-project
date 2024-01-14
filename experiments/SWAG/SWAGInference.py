@@ -453,21 +453,30 @@ class SWAGInference:
             calibration_data[labels_map[label]] = {
                 'bin': [],
                 'predicted_probability': [],
-                'actual_frequency': []
+                'actual_frequency': [],
+                'absolute_occurrences': [],
+                'total_samples_in_bin': []
             }
             for b in range(len(bins) - 1):
+                pred_prob = (bins[b] + bins[b + 1]) / 2
+                calibration_data[labels_map[label]]['bin'].append(b + 1)  # Numeric bin labeling
+                calibration_data[labels_map[label]]['predicted_probability'].append(pred_prob)
+                
+                # Handle bins with zero occurrences
                 if bin_counts[label][b] > 0:
                     actual_freq = bin_sums[label][b] / bin_counts[label][b]
-                    pred_prob = (bins[b] + bins[b + 1]) / 2
-                    calibration_data[labels_map[label]]['bin'].append(f"{bins[b]}-{bins[b+1]}")
-                    calibration_data[labels_map[label]]['predicted_probability'].append(pred_prob)
-                    calibration_data[labels_map[label]]['actual_frequency'].append(actual_freq)
+                else:
+                    actual_freq = 0 
+                
+                calibration_data[labels_map[label]]['actual_frequency'].append(actual_freq)
+                calibration_data[labels_map[label]]['absolute_occurrences'].append(bin_sums[label][b])
+                calibration_data[labels_map[label]]['total_samples_in_bin'].append(bin_counts[label][b])
 
         # Export calibration data to CSV
         for label, data in calibration_data.items():
             output_path = os.path.join(Config.OUTPUT_DIR, f"calibration_{label}.csv")
             with open(output_path, 'w', newline='') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=['bin', 'predicted_probability', 'actual_frequency'])
+                writer = csv.DictWriter(csvfile, fieldnames=['bin', 'predicted_probability', 'actual_frequency', 'absolute_occurrences', 'total_samples_in_bin'])
                 writer.writeheader()
                 for i in range(len(data['bin'])):
                     writer.writerow({k: data[k][i] for k in data})
