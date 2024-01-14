@@ -99,7 +99,9 @@ def create_symlink(src_path, dest_dir):
     dest_path = os.path.join(dest_dir, os.path.basename(src_path))
 
     if not os.path.exists(dest_path):  # Check if symlink already exists
-        os.symlink(os.path.abspath(src_path), dest_path)
+        # create symlink for .hea file and another symlink for .mat file
+        os.symlink(os.path.abspath(src_path) + ".hea", dest_path + ".hea")
+        os.symlink(os.path.abspath(src_path) + ".mat", dest_path + ".mat")
     else:
         print(f"Symlink {dest_path} already exists. Skipping.")
 
