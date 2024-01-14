@@ -18,8 +18,5 @@ class SWAGExperiment:
         # Run SWAGInference::fit()
         self.swag_inference.fit_swag()
 
-        # Run SWAGInference::calibrate()
-        self.swag_inference.calibrate()
-
         # Run SWAGInference::evaluate()
         self.swag_inference.evaluate() #TODO: implement evaluate() here and not from swag_inference
