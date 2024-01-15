@@ -4,26 +4,28 @@ import os
 import torch
 import numpy as np
 import pandas as pd
+import importlib
 from skmultilearn.model_selection import IterativeStratification
 
 import utils.cinc_utils as cinc_utils
 from preprocess_dataset import get_record_paths_and_labels_binary_encoded_list
 from experiments.SWAG.SWAGInference import SWAGInference
-from experiments.SWAG.SWAG import SWAGExperiment  # Import the new class
-from experiments.SWAG.config import Config
+from experiments.SWAG.SWAG import SWAGExperiment
 
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.metrics._ranking")
 
 if __name__ == "__main__":
     print("Running SWAGExperiment.")
 
-    # if os.path.isdir(Config.OUTPUT_DIR):
-    #     print(
-    #         "\033[91mOutput directory already exists. Either remove it or change it in the config file. Exiting.\033[0m"
-    #     )
-    #     quit()
+    learning_rate = sys.argv[1] if len(sys.argv) > 1 else '001'
+    checkpoint_path = sys.argv[2] if len(sys.argv) > 2 else None
 
-    k = 0 # No stratification
+    # Import the corresponding Config file based on the learning rate
+    config_module = importlib.import_module(f'experiments.SWAG.config_lr_{learning_rate}')
+    Config = config_module.Config
+
+    k = 0  # No stratification
+
 
     mapping = pd.read_csv("utils/label_mapping_ecgnet_eq.csv", delimiter=";")
     class_mapping = mapping[["SNOMED CT Code", "Training Code"]]
@@ -44,7 +46,6 @@ if __name__ == "__main__":
     classes = [str(c) for c in classes]
     classes_test = [str(c) for c in classes_test]
 
-    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else None
 
 
     # TODO: Fix numpy seeds and torch seeds
@@ -58,14 +59,15 @@ if __name__ == "__main__":
     # Create an instance of your SWAGExperiment class
     swag_experiment = SWAGExperiment(
         SWAGInference(
-        checkpoint_path,
-        X,
-        y,
-        X_test,
-        y_test,
-        classes,
-        classes_test,
-        CV_k=k,
+            checkpoint_path,
+            X,
+            y,
+            X_test,
+            y_test,
+            classes,
+            classes_test,
+            Config,
+            CV_k=k,
         )
     )
 
