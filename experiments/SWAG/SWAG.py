@@ -14,9 +14,12 @@ class SWAGExperiment:
     def __init__(self, swag_inference: SWAGInference) -> None:
         self.swag_inference = swag_inference
 
-    def run(self) -> None:
+    def run(self, checkpoint_dir=None) -> None:
         # Run SWAGInference::fit()
-        self.swag_inference.fit_swag()
+        if checkpoint_dir is None:
+            self.swag_inference.fit_swag()
+        else:
+            self.swag_inference.update_swag_from_checkpoints(checkpoint_dir)
 
         # Run SWAGInference::evaluate()
-        self.swag_inference.evaluate() #TODO: implement evaluate() here and not from swag_inference
+        self.swag_inference.evaluate()  # TODO: implement evaluate() here and not from swag_inference

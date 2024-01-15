@@ -12,20 +12,22 @@ from preprocess_dataset import get_record_paths_and_labels_binary_encoded_list
 from experiments.SWAG.SWAGInference import SWAGInference
 from experiments.SWAG.SWAG import SWAGExperiment
 
-warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.metrics._ranking")
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="sklearn.metrics._ranking"
+)
 
 if __name__ == "__main__":
     print("Running SWAGExperiment.")
 
-    config_file_name = sys.argv[1] if len(sys.argv) > 1 else 'config_lr_001'
+    config_file_name = sys.argv[1] if len(sys.argv) > 1 else "config_lr_001"
     checkpoint_path = sys.argv[2] if len(sys.argv) > 2 else None
+    checkpoint_dir = sys.argv[3] if len(sys.argv) > 3 else None
 
     # Import the corresponding Config file based on the learning rate
-    config_module = importlib.import_module(f'experiments.SWAG.{config_file_name}')
+    config_module = importlib.import_module(f"experiments.SWAG.{config_file_name}")
     Config = config_module.Config
 
     k = 0  # No stratification
-
 
     mapping = pd.read_csv("utils/label_mapping_ecgnet_eq.csv", delimiter=";")
     class_mapping = mapping[["SNOMED CT Code", "Training Code"]]
@@ -45,8 +47,6 @@ if __name__ == "__main__":
 
     classes = [str(c) for c in classes]
     classes_test = [str(c) for c in classes_test]
-
-
 
     # TODO: Fix numpy seeds and torch seeds
     np.random.seed(42)
@@ -76,4 +76,4 @@ if __name__ == "__main__":
         # swag_experiment.evaluate_test_set() # TODO: Implement this
     else:
         print("Running SWAG epochs.")
-        swag_experiment.run()
+        swag_experiment.run(checkpoint_dir)

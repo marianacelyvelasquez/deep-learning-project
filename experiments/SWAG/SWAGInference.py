@@ -44,7 +44,6 @@ class SWAGInference:
         self.output_dir = Config.OUTPUT_DIR
         self.device = torch.device(Config.DEVICE_NAME)
 
-
         # Define classes
         self.classes = classes
         self.classes_test = classes_test
@@ -264,9 +263,47 @@ class SWAGInference:
                 checkpoint_file_path,
             )
 
-    def predict_probabilities(
-        self, loader: torch.utils.data.DataLoader
-    ):
+    def update_swag_from_checkpoints(self, checkpoint_dir):
+        """
+        Loads model states from checkpoint files in a given directory and updates SWAG parameters.
+
+        Args:
+            checkpoint_dir (str): Path to the directory containing checkpoint files.
+        """
+        # Ensure the checkpoint directory exists
+        if not os.path.exists(checkpoint_dir):
+            print(f"Checkpoint directory {checkpoint_dir} does not exist.")
+            return
+
+        # List all checkpoint files in the directory
+        checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pt")]
+        if not checkpoint_files:
+            print("No checkpoint files found.")
+            return
+
+        # Sort the checkpoint files to ensure they are processed in order
+        checkpoint_files.sort()
+
+        print(checkpoint_files)
+
+        # Iterate through each checkpoint file
+        for i in range(self.swag_max_epochs):
+            checkpoint_path = os.path.join(checkpoint_dir, checkpoint_files[i])
+            print(f"Loading checkpoint: {checkpoint_path}")
+
+            # Load the checkpoint
+            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+
+            # Load the model state from the checkpoint
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+
+            # Update SWAG parameters
+            self.n = i + 1  # Update the iteration number
+            self.update_swag()
+
+        print("SWAG parameters updated from checkpoints.")
+
+    def predict_probabilities(self, loader: torch.utils.data.DataLoader):
         """
         Goal: Implement Bayesian Model Averaging by doing:
              1. Sample new model from SWAG (call self.sample_parameters())
