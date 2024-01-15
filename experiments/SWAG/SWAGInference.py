@@ -42,6 +42,7 @@ class SWAGInference:
         self.deviation_matrix_max_rank = Config.DEVIATION_MATRIX_MAX_RANK
         self.bma_samples = Config.BMA_SAMPLES
         self.output_dir = Config.OUTPUT_DIR
+        self.device = torch.device(Config.DEVICE_NAME)
 
 
         # Define classes
@@ -81,9 +82,6 @@ class SWAGInference:
             "out_channels": 24,
             "kernel_size": 3,
         }
-
-        device_type, device_count = get_device()
-        self.device = torch.device(f"{device_type}:0")
 
         # Load pretrained dilated CNN
         if checkpoint_path is None:
