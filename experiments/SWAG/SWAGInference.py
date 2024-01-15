@@ -9,7 +9,6 @@ import pandas as pd
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from utils.MetricsManager import MetricsManager
-from experiments.SWAG.config import Config
 
 # from dataloaders.cinc2020.dataset import Cinc2020Dataset
 from dataloaders.cinc2020.datasetThePaperCode import Cinc2020Dataset
@@ -30,6 +29,7 @@ class SWAGInference:
         y_test,
         classes,
         classes_test,
+        Config,
         CV_k,
     ) -> None:
         # Fix randomness
@@ -41,6 +41,8 @@ class SWAGInference:
         self.swag_update_freq = Config.SWAG_UPDATE_FREQ
         self.deviation_matrix_max_rank = Config.DEVIATION_MATRIX_MAX_RANK
         self.bma_samples = Config.BMA_SAMPLES
+        self.output_dir = Config.OUTPUT_DIR
+
 
         # Define classes
         self.classes = classes
@@ -245,7 +247,7 @@ class SWAGInference:
             self.train_metrics_manager.report_macro_averages(epoch)
 
             checkpoint_dir = os.path.join(
-                Config.OUTPUT_DIR, f"fold_{self.CV_k}", "checkpoints"
+                self.output_dir, f"fold_{self.CV_k}", "checkpoints"
             )
             if not os.path.exists(checkpoint_dir):
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -264,7 +266,17 @@ class SWAGInference:
                 checkpoint_file_path,
             )
 
-    def predict_probabilities(self, loader: torch.utils.data.DataLoader):
+    def predict_probabilities(
+        self, loader: torch.utils.data.DataLoader
+    ):
+        """
+        Goal: Implement Bayesian Model Averaging by doing:
+             1. Sample new model from SWAG (call self.sample_parameters())
+             2. Predict probabilities with sampled model
+             3. repeat 1-2 for num_bma_samples times
+             4. Average the probabilities over the num_bma_samples
+        """
+
         with torch.no_grad():
             self.model.eval()
 
@@ -474,7 +486,7 @@ class SWAGInference:
         # Export calibration data to CSV
         for label, data in calibration_data.items():
             output_path = os.path.join(
-                Config.OUTPUT_DIR,
+                self.output_dir,
                 "fold_0",
                 "metrics",
                 "calibration_measurements",
@@ -507,7 +519,7 @@ class SWAGInference:
 
     def save_prediction(self, filenames, y_preds, y_probs, subdir):
         output_dir = os.path.join(
-            Config.OUTPUT_DIR, f"fold_{self.CV_k}", "predictions", subdir
+            self.output_dir, f"fold_{self.CV_k}", "predictions", subdir
         )
 
         if not os.path.exists(output_dir):
