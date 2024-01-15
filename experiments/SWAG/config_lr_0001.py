@@ -1,6 +1,6 @@
 class Config:
-    BMA_SAMPLES = 2
-    DATA_DIR = "data/cinc2020_medium"
+    BMA_SAMPLES = 30
+    DATA_DIR = "data/swag"
     DEVIATION_MATRIX_MAX_RANK = 15
     EARLY_STOPPING_EPOCHS = 3
     EXP_NAME = "SWAG"
@@ -9,8 +9,9 @@ class Config:
     MAX_NUM_EPOCHS = 15
     NUM_FOLDS = 2 #Training and validation set
     ONLY_EVAL_TEST_SET = False
-    OUTPUT_DIR = "output_swag_lr_001"
+    OUTPUT_DIR = "output_swag_lr_0001"
     SWAG_LEARNING_RATE = 0.0001
     SWAG_UPDATE_FREQ = 1
-    TEST_DATA_DIR = "data/cinc2020_medium/g1"
-    TRAIN_DATA_DIR = "data/cinc2020_medium/g2"
+    TEST_DATA_DIR = "data/swag/test"
+    TRAIN_DATA_DIR = "data/swag/train"
+    DEVICE_NAME = "cuda:2"
