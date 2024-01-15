@@ -17,11 +17,11 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.metrics.
 if __name__ == "__main__":
     print("Running SWAGExperiment.")
 
-    learning_rate = sys.argv[1] if len(sys.argv) > 1 else '001'
+    config_file_name = sys.argv[1] if len(sys.argv) > 1 else 'config_lr_001'
     checkpoint_path = sys.argv[2] if len(sys.argv) > 2 else None
 
     # Import the corresponding Config file based on the learning rate
-    config_module = importlib.import_module(f'experiments.SWAG.config_lr_{learning_rate}')
+    config_module = importlib.import_module(f'experiments.SWAG.{config_file_name}')
     Config = config_module.Config
 
     k = 0  # No stratification
