@@ -14,6 +14,10 @@ or via http from the source above.
 
 The downloaded data is split into folders, each folder represents one of the data sources. Furthermore in each dataset folder the files are grouped into subfolders with up to 1000 records per subfolder. These subfolders are named as g# where the # starts at 1. Once 1000 records are allocated to a folder a new folder is started with the # incremented by one.
 
+You can use `python flatten_dataset.py <dir_of_data>` to move all `.hea` and `.mat` files into the same parent dir.
+You can use `python split_data_to_train_test.py` to split the flattened data into stratified test and train sets. You can edit the
+file to change the split. The data dir must be flattened.
+
 ## 2021 Data
 - You can find the data and additional information on https://physionet.org/content/challenge-2021/1.0.3/
 - A data visulaization tool can be found at https://physionet.org/lightwave/?db=challenge-2021/1.0.3
@@ -25,3 +29,7 @@ The data can be downloaded by running
 or via http from the source above.
 
 The downloaded data is split into folders, each folder represents one of the data sources.
+
+You can use `python flatten_dataset.py <dir_of_data>` to move all `.hea` and `.mat` files into the same parent dir.
+You can use `python split_data_to_train_test.py` to split the flattened data into stratified test and train sets. You can edit the
+file to change the split. The data dir must be flattened.
