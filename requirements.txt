@@ -30,7 +30,8 @@ six==1.16.0
 soundfile==0.12.1
 sympy==1.12
 threadpoolctl==3.2.0
-torch==2.1.1
+torch==2.1.2
+torchvision==0.16.2
 tqdm==4.66.1
 typing_extensions==4.8.0
 tzdata==2023.3
